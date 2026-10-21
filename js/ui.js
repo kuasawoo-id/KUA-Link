@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — ui.js : komponen & utilitas tampilan
+ * KUA-Link — ui.js : komponen & utilitas tampilan
  * ===================================================================== */
 var UI = (function () {
   /* ---------------- IKON (garis, gaya Lucide) ---------------- */

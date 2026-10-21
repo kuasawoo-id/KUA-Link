@@ -1,6 +1,6 @@
-# LABUKU Link
+# KUA-Link
 
-Administrasi surat pengantar nikah Desa – KUA Kecamatan Sawoo. by Ahzani Labs
+Administrasi surat pengantar nikah Desa – KUA Sawoo. by Ahzani Labs
 
 - Frontend statis (HTML/CSS/JS) — di-hosting di GitHub Pages.
 - Backend: Google Apps Script (REST API JSON) + Google Sheets/Docs/Drive milik akun KUA.

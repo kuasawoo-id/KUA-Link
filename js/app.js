@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — app.js : state, login, kerangka (header + sidebar), router SPA
+ * KUA-Link — app.js : state, login, kerangka (header + sidebar), router SPA
  * Navigasi antar halaman instan (tanpa panggilan server) — data diambil
  * sekali lewat "bootstrap", lalu disegarkan di latar belakang.
  * ===================================================================== */
@@ -26,7 +26,7 @@ var App = (function () {
       if (window.Formulir && Formulir.isDirty()) { e.preventDefault(); e.returnValue = ''; }
     });
     if (/GANTI_DENGAN_ID_DEPLOYMENT/.test(LK_CONFIG.GAS_URL)) {
-      document.getElementById('root').innerHTML = '<div class="login-wrap"><div class="login-card"><div class="wordmark">LABUKU Link<small>by Ahzani Labs</small></div>' +
+      document.getElementById('root').innerHTML = '<div class="login-wrap"><div class="login-card"><div class="wordmark">KUA-Link<small>by Ahzani Labs</small></div>' +
         '<h1>Belum dikonfigurasi</h1><p class="sub">Isi <b>GAS_URL</b> di file <code>js/config.js</code> dengan URL Web App Apps Script (berakhiran <code>/exec</code>), lalu upload ulang.</p></div></div>';
       return;
     }
@@ -37,7 +37,7 @@ var App = (function () {
     stopPolling();
     document.getElementById('root').innerHTML =
       '<div class="login-wrap"><form class="login-card" id="loginForm" autocomplete="on">' +
-      '<div class="wordmark">LABUKU Link<small>by Ahzani Labs</small></div>' +
+      '<div class="wordmark">KUA-Link<small>by Ahzani Labs</small></div>' +
       '<h1>Masuk</h1><p class="sub">Administrasi Surat Pengantar Nikah – Desa &amp; KUA</p>' +
       (msg ? '<div class="banner warn" style="margin-bottom:16px">' + icon('alert') + '<div class="txt">' + esc(msg) + '</div></div>' : '') +
       '<div class="banner danger hidden" id="loginErr" style="margin-bottom:16px">' + icon('xCircle') + '<div class="txt"></div></div>' +
@@ -47,7 +47,9 @@ var App = (function () {
       '<button type="button" class="btn btn-ghost btn-icon" id="lpShow" style="position:absolute;right:4px;top:4px" aria-label="Tampilkan password">' + icon('eye') + '</button></div></div>' +
       '<div class="field"><label for="lo">Nama Operator (opsional)</label><input class="input" id="lo" maxlength="60" placeholder="Mis. Sri Wahyuni"><div class="help">Dicatat di riwayat login — membantu KUA mengetahui siapa yang bertugas.</div></div>' +
       '<button class="btn btn-primary" id="lbtn" style="width:100%;height:44px" data-busy-text="Memeriksa…">Masuk</button>' +
-      '</div><div class="login-foot">Akun terkunci 15 menit setelah 5 kali gagal masuk.<br>KUA Kecamatan Sawoo · Ahzani Labs</div></form></div>';
+      '<button type="button" class="btn btn-ghost hidden" data-pwa-install style="width:100%">' + icon('download') + 'Pasang Aplikasi di Perangkat Ini</button>' +
+      '</div><div class="login-foot">Akun terkunci 15 menit setelah 5 kali gagal masuk.<br>KUA Sawoo · Ahzani Labs</div></form></div>';
+    if (window.PWA) PWA.bind(document.getElementById('root'));
     try { var last = localStorage.getItem('lk_last_op'); if (last) document.getElementById('lo').value = last; } catch (e) { /* abaikan */ }
     document.getElementById('lpShow').onclick = function () { var i = document.getElementById('lp'); i.type = i.type === 'password' ? 'text' : 'password'; };
     document.getElementById('loginForm').addEventListener('submit', function (e) {
@@ -68,32 +70,72 @@ var App = (function () {
         try { localStorage.setItem('lk_last_op', op); } catch (e2) { /* abaikan */ }
         API.setSession({ token: r.data.token, user: r.data.user });
         if (r.data.user.wajib_ganti_pw) { S.user = r.data.user; forcePasswordChange(); return; }
-        await bootstrap();
+        if (r.data.boot) { applyBoot(r.data.boot); saveBootCache(r.data.boot); startPolling(); }
+        else await bootstrap();
       });
     });
   }
 
+  /* ---------- Cache data awal di perangkat (stale-while-revalidate) ----------
+   * Tampilan langsung dirender dari cache (0 detik), lalu data terbaru diambil
+   * dari server di latar belakang. Cache dihapus saat Keluar / sesi berakhir. */
+  var BOOT_PREFIX = 'lk_boot_';
+  function bootKey(userId) { return BOOT_PREFIX + userId; }
+  function readBootCache() {
+    var s = API.session();
+    if (!s || !s.user) return null;
+    try { return JSON.parse(localStorage.getItem(bootKey(s.user.user_id)) || 'null'); } catch (e) { return null; }
+  }
+  function saveBootCache(data) {
+    try {
+      Object.keys(localStorage).forEach(function (k) { if (k.indexOf(BOOT_PREFIX) === 0 && k !== bootKey(data.user.user_id)) localStorage.removeItem(k); });
+      localStorage.setItem(bootKey(data.user.user_id), JSON.stringify(Object.assign({ cachedAt: Date.now() }, data)));
+    } catch (e) { /* penyimpanan penuh/diblokir: abaikan */ }
+  }
+  /** Simpan state terkini ke cache (ditunda 1 detik agar tidak menulis berulang). */
+  var persistTimer = null;
+  function persistState() {
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(function () {
+      if (S.user && S.master) saveBootCache({ user: S.user, desa: S.desa, master: S.master, pengajuan: S.list, notif: S.notif });
+    }, 1000);
+  }
+  function clearBootCache() {
+    try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf(BOOT_PREFIX) === 0) localStorage.removeItem(k); }); } catch (e) { /* abaikan */ }
+  }
+
+  /** Terapkan data awal ke state. Render penuh pertama kali, selanjutnya hanya render ulang halaman aktif. */
+  function applyBoot(d, fromCache) {
+    var first = !S.master || !document.getElementById('main');
+    S.user = d.user;
+    S.desa = d.desa;
+    S.master = d.master;
+    S.list = d.pengajuan || [];
+    S.notif = d.notif || { items: [], unread: 0 };
+    S.listAt = fromCache ? (d.cachedAt || Date.now()) : Date.now();
+    if (first) { renderShell(); route(); }
+    else { updateBell(); if (!(window.Formulir && Formulir.isOpen())) rerender(); else refreshSidebar(); }
+  }
+
   async function bootstrap() {
     var root = document.getElementById('root');
-    if (!S.master) root.innerHTML = '<div class="boot"><div style="text-align:center"><div class="wordmark" style="margin-bottom:10px">LABUKU Link</div><span class="muted">Menyiapkan data…</span></div></div>';
+    var cached = readBootCache();
+    if (cached && !S.master) applyBoot(cached, true);
+    else if (!S.master) root.innerHTML = '<div class="boot"><div style="text-align:center"><div class="wordmark" style="margin-bottom:10px">KUA-Link</div><span class="muted">Menyiapkan data…</span></div></div>';
     var r = await API.call('bootstrap');
     if (!r.success) {
       if (r.code === 'AUTH' || r.code === 'GANTI_PW') return;
+      if (S.master) { UI.toast('Menampilkan data tersimpan di perangkat — ' + r.message, 'warning'); startPolling(); return; }
       root.innerHTML = '<div class="login-wrap"><div class="login-card"><h1>Gagal memuat</h1><p class="sub">' + esc(r.message) + '</p><button class="btn btn-primary" onclick="location.reload()">Coba Lagi</button> <button class="btn" onclick="App.logout()">Keluar</button></div></div>';
       return;
     }
-    S.user = r.data.user;
-    S.desa = r.data.desa;
-    S.master = r.data.master;
-    S.list = r.data.pengajuan || [];
-    S.notif = r.data.notif || { items: [], unread: 0 };
-    S.listAt = Date.now();
-    renderShell();
-    route();
+    applyBoot(r.data, false);
+    saveBootCache(r.data);
     startPolling();
   }
 
   function sessionExpired(msg) {
+    clearBootCache();
     API.setSession(null);
     S.user = null; S.master = null;
     if (window.Formulir) Formulir.forceClose();
@@ -106,6 +148,7 @@ var App = (function () {
       if (!ok) return;
     }
     API.call('logout');
+    clearBootCache();
     try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('lk_draft_') === 0) localStorage.removeItem(k); }); } catch (e) { /* abaikan */ }
     API.setSession(null);
     S.user = null; S.master = null; S.list = [];
@@ -117,7 +160,7 @@ var App = (function () {
   /* ---------------- GANTI PASSWORD ---------------- */
   function pwForm() {
     return '<div class="stack" style="gap:14px">' +
-      '<div class="field"><label>Password Lama / Sementara</label><input class="input" type="password" data-pw="lama" autocomplete="current-password"></div>' +
+      '<div class="field"><label>Password Lama / Awal</label><input class="input" type="password" data-pw="lama" autocomplete="current-password"></div>' +
       '<div class="field"><label>Password Baru</label><input class="input" type="password" data-pw="baru" autocomplete="new-password"><div class="help">Minimal 8 karakter, berisi huruf dan angka.</div></div>' +
       '<div class="field"><label>Ulangi Password Baru</label><input class="input" type="password" data-pw="ulang" autocomplete="new-password"></div>' +
       '<div class="msg hidden" data-pwmsg style="color:var(--danger);font-size:13px"></div></div>';
@@ -137,8 +180,8 @@ var App = (function () {
   }
   function forcePasswordChange() {
     var m = UI.modal({
-      title: 'Ganti Password Sementara', icon: 'key', sticky: true,
-      body: '<p style="margin-top:0">Demi keamanan data pribadi catin, ganti password sementara dari Admin KUA sebelum melanjutkan.</p>' + pwForm(),
+      title: 'Ganti Password Awal', icon: 'key', sticky: true,
+      body: '<p style="margin-top:0">Demi keamanan data pribadi catin, ganti password awal dari Admin KUA dengan password milik Anda sendiri sebelum melanjutkan.</p>' + pwForm(),
       foot: '<button class="btn" data-out>Keluar</button><button class="btn btn-primary" data-ok>Simpan Password</button>'
     });
     m.root.dataset.sticky = '1';
@@ -195,6 +238,7 @@ var App = (function () {
       h += navLink('#/profil', 'user', 'Profil Akun');
     }
     h += '<div class="spacer"></div><div class="bottom">' +
+      '<button class="nav-item hidden" data-pwa-install>' + icon('download', 19) + '<span class="lbl">Pasang Aplikasi</span></button>' +
       '<button class="nav-item" data-act="panduan">' + icon('help', 19) + '<span class="lbl">Panduan Teknis</span></button>' +
       '<button class="nav-item logout" data-act="logout">' + icon('logout', 19) + '<span class="lbl">Keluar</span></button></div>';
     return h;
@@ -206,7 +250,7 @@ var App = (function () {
     document.getElementById('root').innerHTML =
       '<div class="app"><header class="header">' +
       '<button class="btn btn-ghost btn-icon menu-btn" id="menuBtn" aria-label="Menu">' + icon('menu', 22) + '</button>' +
-      '<div class="wordmark">LABUKU Link<small>by Ahzani Labs</small></div><div class="divider"></div>' +
+      '<div class="wordmark">KUA-Link<small>by Ahzani Labs</small></div><div class="divider"></div>' +
       '<div class="welcome"><div class="hi">Selamat datang,<b>' + esc(name) + '</b></div><div class="tagline">Administrasi Surat Pengantar Nikah – ' + esc(kuaName()) + '</div></div>' +
       '<div class="right"><button class="icon-btn" id="bellBtn" aria-label="Notifikasi">' + icon('bell', 20) + '<span class="count' + (S.notif.unread ? '' : ' hidden') + '" id="bellCount">' + S.notif.unread + '</span></button>' +
       '<button class="account" id="accBtn" data-menu-anchor><span class="avatar">' + esc(UI.initials(person)) + '</span><span class="who"><b>' + esc(person) + '</b><span>' + esc(roleLabel()) + '</span></span>' + icon('chevD', 16) + '</button></div></header>' +
@@ -260,6 +304,7 @@ var App = (function () {
     sb.querySelectorAll('[data-nav]').forEach(function (a) { a.addEventListener('click', closeSidebar); });
     sb.querySelector('[data-act="logout"]').onclick = logout;
     sb.querySelector('[data-act="panduan"]').onclick = panduan;
+    if (window.PWA) PWA.bind(sb);
     var inp = document.getElementById('navSearch');
     inp.addEventListener('input', function () { filterNav(inp.value); });
     inp.addEventListener('keydown', function (e) {
@@ -358,6 +403,7 @@ var App = (function () {
     if (r.success) {
       S.list = r.data;
       S.listAt = Date.now();
+      persistState();
       rerender();
       if (showToast) UI.toast('Data diperbarui.', 'info');
     } else if (showToast) UI.toast(r.message, 'error');
@@ -366,6 +412,7 @@ var App = (function () {
     if (!row || !row.pengajuan_id) return;
     var i = S.list.findIndex(function (p) { return p.pengajuan_id === row.pengajuan_id; });
     if (i >= 0) S.list[i] = row; else S.list.unshift(row);
+    persistState();
     refreshSidebar();
   }
   async function refreshNotif() {

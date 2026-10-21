@@ -1,16 +1,18 @@
 /* =====================================================================
- * LABUKU Link — api.js
+ * KUA-Link — api.js
  * Semua komunikasi ke backend Apps Script lewat fetch POST.
  * Content-Type text/plain WAJIB agar tidak memicu CORS preflight.
  * ===================================================================== */
 var API = (function () {
   var TOKEN_KEY = 'lk_session';
 
+  // Sesi disimpan di localStorage agar aplikasi (termasuk versi terpasang/PWA) tidak minta login
+  // setiap dibuka. Sesi tetap berakhir di server setelah 6 jam tidak aktif, dan dihapus saat Keluar.
   function session() {
-    try { return JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null'); } catch (e) { return null; }
+    try { return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null'); } catch (e) { return null; }
   }
   function setSession(s) {
-    try { if (s) sessionStorage.setItem(TOKEN_KEY, JSON.stringify(s)); else sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* abaikan */ }
+    try { if (s) localStorage.setItem(TOKEN_KEY, JSON.stringify(s)); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* abaikan */ }
   }
 
   /**

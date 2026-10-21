@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — master.js : Data Master (khusus Super Admin)
+ * KUA-Link — master.js : Data Master (khusus Super Admin)
  * Akun Desa · Field Surat · Template Surat · Aturan Paket Surat & Peringatan
  * ===================================================================== */
 var Master = (function () {
@@ -83,7 +83,7 @@ var Master = (function () {
       if (!u) return '<span class="pill s-DIKEMBALIKAN">Belum Ada Akun</span>';
       if (!u.aktif) return '<span class="pill s-NEUTRAL">Nonaktif</span>';
       if (u.terkunci) return '<span class="pill s-DIBATALKAN">Terkunci</span>';
-      if (u.wajib_ganti_pw) return '<span class="pill s-CETAK">Password Sementara</span>';
+      if (u.wajib_ganti_pw) return '<span class="pill s-CETAK">Belum Ganti Password</span>';
       return '<span class="pill s-TERKUNCI">Aktif</span>';
     };
     main.innerHTML = head('AKUN DESA', 'Data Master') +
@@ -166,7 +166,9 @@ var Master = (function () {
         '<div class="field" data-desawrap><label>Desa<span class="req">*</span></label><select class="select" data-v="desa_id">' + UI.options(S.master.desa.map(function (d) { return { v: d.desa_id, l: d.nama_desa }; }), u.desa_id, '— Pilih desa —') + '</select></div>' +
         '<div class="field"><label>Username<span class="req">*</span></label><input class="input mono" data-v="username" value="' + esc(u.username) + '" autocomplete="off"><div class="help">Huruf kecil, angka, titik.</div></div>' +
         '<div class="field"><label>Nama Tampilan</label><input class="input" data-v="nama_tampilan" value="' + esc(u.nama_tampilan) + '"></div>' +
-        (isNew ? '<div class="field full"><div class="banner neutral">' + icon('key') + '<div class="txt">Password sementara dibuat otomatis dan wajib diganti saat login pertama.</div></div></div>' : '') +
+        (isNew ? '<div class="field"><label>Password Awal<span class="req">*</span></label><input class="input" type="password" data-v="password" autocomplete="new-password"><div class="help">Min. 8 karakter, huruf + angka.</div></div>' +
+        '<div class="field"><label>Ulangi Password<span class="req">*</span></label><input class="input" type="password" data-v="password2" autocomplete="new-password"></div>' +
+        '<div class="field full"><div class="banner neutral">' + icon('key') + '<div class="txt">Sampaikan password awal ini langsung ke pemilik akun (bukan lewat grup). Pemilik akun <b>wajib menggantinya</b> saat login pertama.</div></div></div>' : '') +
         '<label class="switch"><input type="checkbox" data-v="aktif"' + (u.aktif === false ? '' : ' checked') + '>Akun aktif</label></div>',
       foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>Simpan</button>'
     });
@@ -174,35 +176,39 @@ var Master = (function () {
     m.root.querySelector('[data-v="peran"]').onchange = sync; sync();
     m.root.querySelector('[data-ok]').onclick = function () {
       var b = this, g = function (k) { var x = m.root.querySelector('[data-v="' + k + '"]'); return x.type === 'checkbox' ? x.checked : x.value.trim(); };
+      if (isNew && g('password') !== g('password2')) return UI.toast('Ulangi password tidak sama.', 'error');
       UI.busy(b, async function () {
-        var r = await API.call('saveUser', { user_id: isNew ? '' : u.user_id, peran: g('peran'), desa_id: g('desa_id'), username: g('username'), nama_tampilan: g('nama_tampilan'), aktif: g('aktif') });
+        var r = await API.call('saveUser', { user_id: isNew ? '' : u.user_id, peran: g('peran'), desa_id: g('desa_id'), username: g('username'), nama_tampilan: g('nama_tampilan'), aktif: g('aktif'), password: isNew ? g('password') : '' });
         if (!r.success) return UI.toast(r.message, 'error');
         m.close();
         var i = users.findIndex(function (x) { return x.user_id === r.data.user.user_id; });
         if (i >= 0) users[i] = r.data.user; else users.push(r.data.user);
         drawAkun(main);
-        if (r.data.temp_password) showPw(r.data.user.username, r.data.temp_password); else UI.toast(r.message);
+        UI.toast(r.message);
       });
     };
   }
 
-  function showPw(username, pw) {
+  function resetPw(u, main) {
     var m = UI.modal({
-      title: 'Password Sementara', icon: 'key',
-      body: '<p style="margin-top:0">Berikan ke pemilik akun <b class="mono">' + esc(username) + '</b>. Password ini <b>hanya tampil sekali</b> dan wajib diganti saat login pertama.</p><div class="pw-box">' + esc(pw) + '</div>',
-      foot: '<button class="btn" data-copy>' + icon('copy') + 'Salin</button><button class="btn btn-primary" data-close>Sudah Dicatat</button>'
+      title: 'Reset Password — ' + u.username, icon: 'key',
+      body: '<p style="margin-top:0">Ketik password awal baru. Sesi yang sedang aktif di akun ini akan dikeluarkan, dan pemilik akun <b>wajib menggantinya</b> saat login berikutnya.</p>' +
+        '<div class="form-grid"><div class="field"><label>Password Baru<span class="req">*</span></label><input class="input" type="password" data-v="password" autocomplete="new-password" autofocus><div class="help">Min. 8 karakter, huruf + angka.</div></div>' +
+        '<div class="field"><label>Ulangi Password<span class="req">*</span></label><input class="input" type="password" data-v="password2" autocomplete="new-password"></div></div>',
+      foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>' + icon('key', 16) + 'Reset Password</button>'
     });
-    m.root.querySelector('[data-copy]').onclick = function () { UI.copyText(pw); };
-  }
-
-  async function resetPw(u, main) {
-    var ok = await UI.confirm({ title: 'Reset Password', icon: 'key', message: 'Buat password sementara baru untuk ' + u.username + '? Sesi yang sedang aktif di akun ini akan dikeluarkan.', ok: 'Reset Password' });
-    if (!ok) return;
-    var r = await API.call('resetPassword', { user_id: u.user_id });
-    if (!r.success) return UI.toast(r.message, 'error');
-    var i = users.findIndex(function (x) { return x.user_id === u.user_id; }); users[i] = r.data.user;
-    drawAkun(main);
-    showPw(u.username, r.data.temp_password);
+    m.root.querySelector('[data-ok]').onclick = function () {
+      var b = this, pw = m.root.querySelector('[data-v="password"]').value, pw2 = m.root.querySelector('[data-v="password2"]').value;
+      if (pw !== pw2) return UI.toast('Ulangi password tidak sama.', 'error');
+      UI.busy(b, async function () {
+        var r = await API.call('resetPassword', { user_id: u.user_id, password: pw });
+        if (!r.success) return UI.toast(r.message, 'error');
+        m.close();
+        var i = users.findIndex(function (x) { return x.user_id === u.user_id; }); users[i] = r.data.user;
+        drawAkun(main);
+        UI.toast(r.message);
+      });
+    };
   }
   async function unlock(u, main) {
     var r = await API.call('unlockUser', { user_id: u.user_id });

@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — ATURAN BERSAMA
+ * KUA-Link — ATURAN BERSAMA
  * File ini IDENTIK dengan backend "Aturan.gs".
  * Jika mengubah salah satu, salin perubahan ke yang lain.
  * Berisi: grup formulir, evaluasi kondisi, umur saat akad, validasi,

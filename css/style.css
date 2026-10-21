@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — style.css
+ * KUA-Link — style.css
  * Palet: Navy Ink #0F172A (utama) · Emerald #047857 (aksen) · Inter
  * ===================================================================== */
 :root {
@@ -472,3 +472,13 @@ table.tbl { width: 100%; border-collapse: collapse; background: #fff; }
   .drawer { width: 100%; }
 }
 @media print { .header, .sidebar, .toasts { display: none !important; } }
+
+/* ---------- PWA: pemberitahuan versi baru ---------- */
+.pwa-update {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 10px 12px 10px 16px; font-size: 14px;
+}
+.pwa-update span { flex: 1; }
+@media (display-mode: standalone) { .login-wrap { padding-top: max(16px, env(safe-area-inset-top)); } }

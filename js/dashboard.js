@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — dashboard.js : Dashboard Desa & Dashboard KUA
+ * KUA-Link — dashboard.js : Dashboard Desa & Dashboard KUA
  * Semua angka dihitung di browser dari daftar pengajuan (instan).
  * ===================================================================== */
 var Dashboard = (function () {
@@ -93,7 +93,7 @@ var Dashboard = (function () {
       '<div class="card"><div class="card-head"><div><h2>Pengajuan Terbaru</h2><div class="sub">Pengajuan pengantar nikah terkini Desa ' + esc(S.desa ? S.desa.nama_desa : '') + '</div></div>' +
       '<div class="end"><a class="btn btn-primary" href="#/form/new">' + icon('plus') + 'Pengajuan Baru</a></div></div>' + recentTable(recent, false) +
       '<div class="tbl-foot"><span class="muted">' + S.list.length + ' pengajuan tercatat</span><a class="btn btn-sm" style="margin-left:auto" href="#/pengajuan">Lihat Semua ' + icon('arrowR', 14) + '</a></div></div>' +
-      '<div class="footer-note">© ' + new Date().getFullYear() + ' LABUKU Link · ' + esc(App.kuaName()) + ' · by Ahzani Labs</div></div>';
+      '<div class="footer-note">© ' + new Date().getFullYear() + ' KUA-Link · ' + esc(App.kuaName()) + ' · by Ahzani Labs</div></div>';
     App.bindRefresh(main);
     bindFilter(main, function () { renderDesa(main); });
     bindActions(main);
@@ -140,7 +140,7 @@ var Dashboard = (function () {
             '<td class="c">' + UI.statusPills(p) + '</td><td class="c"><a class="btn btn-sm" href="#/detail/' + esc(p.pengajuan_id) + '">Lihat</a></td></tr>';
         }).join('') + '</tbody></table></div>' : UI.emptyState('Belum ada aktivitas', '')) +
       '<div class="tbl-foot"><span class="muted">' + S.list.length + ' pengajuan aktif</span><a class="btn btn-sm" style="margin-left:auto" href="#/pengajuan">Lihat Semua ' + icon('arrowR', 14) + '</a></div></div></div>' +
-      '<div class="footer-note">© ' + new Date().getFullYear() + ' LABUKU Link · ' + esc(App.kuaName()) + ', Kabupaten ' + esc(S.master.config.kabupaten) + ' · by Ahzani Labs</div></div>';
+      '<div class="footer-note">© ' + new Date().getFullYear() + ' KUA-Link · ' + esc(App.kuaName()) + ', Kabupaten ' + esc(S.master.config.kabupaten) + ' · by Ahzani Labs</div></div>';
     App.bindRefresh(main);
     bindFilter(main, function () { renderKua(main); });
   }

@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — formulir.js : Formulir Pengajuan (5 langkah) & Koreksi KUA
+ * KUA-Link — formulir.js : Formulir Pengajuan (5 langkah) & Koreksi KUA
  *
  * Instant UX:
  *  - Setiap ketikan langsung disimpan ke perangkat (localStorage) — 0 ms.
@@ -205,7 +205,7 @@ var Formulir = (function () {
   function renderTop() {
     var kor = W.mode === 'koreksi';
     var desaNm = W.p ? App.desaName(W.p.desa_id) : (S.desa ? S.desa.nama_desa : '');
-    el().querySelector('.ov-top').innerHTML = '<div class="wordmark hide-sm" style="font-size:17px">LABUKU Link<small>by Ahzani Labs</small></div><div class="divider hide-sm" style="width:1px;height:36px;background:var(--border)"></div>' +
+    el().querySelector('.ov-top').innerHTML = '<div class="wordmark hide-sm" style="font-size:17px">KUA-Link<small>by Ahzani Labs</small></div><div class="divider hide-sm" style="width:1px;height:36px;background:var(--border)"></div>' +
       '<div class="ttl"><b>' + (kor ? 'Koreksi Data oleh KUA' : 'Form Pengajuan Surat Nikah') + '</b><span>Desa ' + esc(desaNm) + ' — Paket Surat Pengantar Nikah</span></div>' +
       '<div class="end">' + (!kor && !W.finished ? '<button class="btn btn-sm" data-clear>' + icon('rotate', 15) + 'Kosongkan Isian</button>' : '') +
       '<button class="btn btn-ghost btn-icon" data-x aria-label="Tutup">' + icon('x', 22) + '</button></div>';

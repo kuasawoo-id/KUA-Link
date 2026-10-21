@@ -1,0 +1,20 @@
+{
+  "name": "KUA-Link — Surat Pengantar Nikah",
+  "short_name": "KUA-Link",
+  "description": "Administrasi surat pengantar nikah Desa – KUA Sawoo. by Ahzani Labs",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "id",
+  "dir": "ltr",
+  "theme_color": "#0F172A",
+  "background_color": "#F4F6F8",
+  "categories": ["productivity", "government"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

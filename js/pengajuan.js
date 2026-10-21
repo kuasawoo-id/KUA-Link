@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — pengajuan.js
+ * KUA-Link — pengajuan.js
  * Daftar pengajuan, menu aksi, cetak paket PDF, pembuat dokumen, detail.
  * ===================================================================== */
 var Pengajuan = (function () {
@@ -316,7 +316,7 @@ var Pengajuan = (function () {
         });
         return o;
       });
-      await UI.exportXlsx('LABUKU-Link_Pengajuan_' + UI.today() + '.xlsx', [{ name: 'Pengajuan', rows: data }]);
+      await UI.exportXlsx('KUA-Link_Pengajuan_' + UI.today() + '.xlsx', [{ name: 'Pengajuan', rows: data }]);
       UI.toast(data.length + ' baris diekspor.');
     });
   }

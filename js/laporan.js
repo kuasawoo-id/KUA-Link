@@ -1,5 +1,5 @@
 /* =====================================================================
- * LABUKU Link — laporan.js : Laporan Rekapitulasi & Riwayat/Arsip
+ * KUA-Link — laporan.js : Laporan Rekapitulasi & Riwayat/Arsip
  * ===================================================================== */
 var Laporan = (function () {
   var esc = UI.esc, icon = UI.icon;
@@ -78,7 +78,7 @@ var Laporan = (function () {
         });
         var rekap = recap.concat([Object.assign({ Desa: 'JUMLAH' }, sum)]);
         var perBulan = LK_BULAN.map(function (b, i) { return { Bulan: b, 'Nikah di KUA': bulan[i].nk, 'Rekomendasi Keluar': bulan[i].rk, Total: bulan[i].tot }; });
-        await UI.exportXlsx('LABUKU-Link_Laporan_' + F.tahun + (F.bulan ? '-' + ('0' + F.bulan).slice(-2) : '') + '.xlsx', [
+        await UI.exportXlsx('KUA-Link_Laporan_' + F.tahun + (F.bulan ? '-' + ('0' + F.bulan).slice(-2) : '') + '.xlsx', [
           { name: 'Rekap per Desa', rows: rekap }, { name: 'Per Bulan ' + F.tahun, rows: perBulan }, { name: 'Data Pengajuan', rows: data }
         ]);
         UI.toast('Laporan diekspor.');
@@ -148,7 +148,7 @@ var Laporan = (function () {
     UI.$$('[data-af]', box).forEach(function (x) { x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', UI.debounce(function () { AF[x.dataset.af] = x.value; draw(); }, 200)); });
     box.querySelector('[data-xls]').onclick = function () {
       UI.busy(this, function () {
-        return UI.exportXlsx('LABUKU-Link_Riwayat_' + UI.today() + '.xlsx', [{ name: 'Riwayat Aktivitas', rows: cache.audit.map(function (a) { return { Waktu: a.waktu, Peran: a.aktor_peran, Pelaku: a.nama_operator, Desa: App.desaName(a.desa_id), Aksi: AKSI_LABEL[a.aksi] || a.aksi, Objek: a.entitas + ' ' + a.entitas_id, Alasan: a.alasan, Perubahan: a.perubahan_json }; }) }]);
+        return UI.exportXlsx('KUA-Link_Riwayat_' + UI.today() + '.xlsx', [{ name: 'Riwayat Aktivitas', rows: cache.audit.map(function (a) { return { Waktu: a.waktu, Peran: a.aktor_peran, Pelaku: a.nama_operator, Desa: App.desaName(a.desa_id), Aksi: AKSI_LABEL[a.aksi] || a.aksi, Objek: a.entitas + ' ' + a.entitas_id, Alasan: a.alasan, Perubahan: a.perubahan_json }; }) }]);
       });
     };
     draw();
