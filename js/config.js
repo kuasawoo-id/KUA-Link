@@ -4,7 +4,7 @@
  *    GAS_URL = URL Web App dari Apps Script (berakhiran /exec)
  * ===================================================================== */
 window.LK_CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/GANTI_DENGAN_ID_DEPLOYMENT/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbwk63Ik9zmWCYEQ2KekbBZ-eC0hnZTaypuyRZLSlVLmot-APjlG4bar5xikJ2yo_Ews/exec',
   APP_NAME: 'KUA-Link',
   BRAND: 'by Ahzani Labs',
   VERSION: '1.3.0',
