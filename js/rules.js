@@ -11,15 +11,15 @@ var LK_STEPS = ['Jadwal Akad', 'Data Calon Suami', 'Data Calon Istri', 'Validasi
 var LK_GROUPS = [
   { key: 'Administrasi', step: 1, label: 'Pengajuan & Administrasi Desa' },
   { key: 'Rencana Akad', step: 1, label: 'Jadwal Akad' },
-  { key: 'Calon Suami', step: 2, prefix: 'suami' },
-  { key: 'Ayah Suami', step: 2, prefix: 'ayah_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili' },
-  { key: 'Ibu Suami', step: 2, prefix: 'ibu_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili' },
-  { key: 'Izin Orang Tua Suami', step: 2, prefix: 'izin_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Suami (N5)' },
-  { key: 'Calon Istri', step: 3, prefix: 'istri', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili' },
-  { key: 'Ayah Istri', step: 3, prefix: 'ayah_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili' },
-  { key: 'Ibu Istri', step: 3, prefix: 'ibu_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili' },
-  { key: 'Izin Orang Tua Istri', step: 3, prefix: 'izin_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Istri (N5)' },
-  { key: 'Wali Nikah', step: 3, prefix: 'wali', copyFrom: 'ayah_istri', copyLabel: 'Ayah Istri', copyMode: 'domisili' },
+  { key: 'Calon Suami', step: 2, prefix: 'suami', tab: 'Calon Suami' },
+  { key: 'Ayah Suami', step: 2, prefix: 'ayah_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ayah' },
+  { key: 'Ibu Suami', step: 2, prefix: 'ibu_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ibu' },
+  { key: 'Izin Orang Tua Suami', step: 2, prefix: 'izin_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Suami (N5)', tab: 'Pemberi Izin' },
+  { key: 'Calon Istri', step: 3, prefix: 'istri', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Calon Istri' },
+  { key: 'Ayah Istri', step: 3, prefix: 'ayah_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ayah' },
+  { key: 'Ibu Istri', step: 3, prefix: 'ibu_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ibu' },
+  { key: 'Izin Orang Tua Istri', step: 3, prefix: 'izin_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Istri (N5)', tab: 'Pemberi Izin' },
+  { key: 'Wali Nikah', step: 3, prefix: 'wali', copyFrom: 'ayah_istri', copyLabel: 'Ayah Istri', copyMode: 'domisili', tab: 'Wali Nikah' },
   { key: 'Turunan', step: 0, label: 'Field Otomatis (tidak tampil di formulir)' }
 ];
 
@@ -44,6 +44,25 @@ var LK_WALI_AYAH = LK_WALI_NASAB[0];
 var LK_WALI_HAKIM = ['Wali nasab tidak ada', 'Walinya adhal', 'Walinya tidak diketahui keberadaannya',
   'Walinya tidak dapat dihadirkan/ditemui karena dipenjara', 'Wali nasab tidak ada yang beragama Islam',
   'Wali yang akan menikahkan menjadi pengantin itu sendiri'];
+
+/**
+ * Jenis pekerjaan KTP-el — daftar 106 pekerjaan Ditjen Dukcapil (Permendagri 6/2026, rilis 7 April 2026).
+ * Dipakai sebagai opsi bawaan field Pekerjaan; Admin tetap bisa mengubah opsi di Data Master → Field Surat.
+ */
+var LK_PEKERJAAN = ['Belum/Tidak Bekerja', 'Mengurus Rumah Tangga', 'Pelajar/Mahasiswa', 'Pensiunan', 'Aparatur Sipil Negara (ASN)',
+  'Tentara Nasional Indonesia (TNI)', 'Kepolisian RI (Polri)', 'Perdagangan', 'Petani/Pekebun', 'Peternak', 'Nelayan/Perikanan', 'Industri',
+  'Konstruksi', 'Transportasi', 'Karyawan Swasta', 'Karyawan BUMN', 'Karyawan BUMD', 'Karyawan Honorer', 'Buruh Harian Lepas',
+  'Buruh Tani/Perkebunan', 'Buruh Nelayan/Perikanan', 'Buruh Peternakan', 'Pembantu Rumah Tangga', 'Tukang Cukur', 'Tukang Listrik',
+  'Tukang Batu', 'Tukang Kayu', 'Tukang Sol Sepatu', 'Tukang Las/Pandai Besi', 'Tukang Jahit', 'Tukang Gigi', 'Penata Rias', 'Penata Busana',
+  'Penata Rambut', 'Mekanik', 'Seniman', 'Tabib', 'Paraji', 'Perancang Busana', 'Penerjemah', 'Imam Masjid', 'Pendeta', 'Pastor', 'Wartawan',
+  'Ustaz/Mubalig', 'Juru Masak', 'Promotor Acara', 'Anggota DPR RI', 'Anggota DPD', 'Anggota BPK', 'Presiden', 'Wakil Presiden',
+  'Anggota Mahkamah Konstitusi', 'Anggota Kabinet/Kementerian', 'Duta Besar/Kepala Perwakilan', 'Gubernur', 'Wakil Gubernur', 'Bupati',
+  'Wakil Bupati', 'Wali Kota', 'Wakil Wali Kota', 'Anggota DPRD Provinsi', 'Anggota DPRD Kab/Kota', 'Dosen', 'Guru', 'Pilot', 'Pengacara',
+  'Notaris', 'Arsitek', 'Akuntan', 'Konsultan', 'Dokter', 'Bidan', 'Perawat', 'Apoteker', 'Psikiater/Psikolog', 'Penyiar Televisi',
+  'Penyiar Radio', 'Pelaut', 'Peneliti', 'Sopir', 'Pialang', 'Paranormal', 'Pedagang', 'Perangkat Desa', 'Kepala Desa', 'Biarawati',
+  'Wiraswasta', 'Artis', 'Atlet', 'Chef', 'Manajer', 'Tenaga Tata Usaha', 'Operator', 'Pekerja Pengolahan, Kerajinan', 'Teknisi',
+  'Asisten Ahli', 'Gembala', 'Uskup', 'Biarawan', 'Pandita', 'Pinandita', 'Bhikkhu', 'Xueshi', 'Wenshi', 'Jiaosheng'];
+var LK_CERAI_TALAK = 'Cerai Talak';
 
 var LK_OPS = [
   { v: '=', l: 'sama dengan', s: 'adalah' },
@@ -131,6 +150,9 @@ function lkAlamatLengkap(data, prefix) {
  *  UMUR_AKAD:<field_tgl_lahir>   umur penuh pada tanggal akad
  *  ALAMAT:<prefix>               alamat lengkap dari <prefix>_alamat, _rt, _rw, ...
  *  SYS:nomor_pengajuan | tanggal_cetak | nama_desa | nama_kua | kecamatan | kabupaten | provinsi | jenis_kelamin_catin
+ *  BIN:<prefix_ayah>             bin/binti = nama ayah (tanpa akhiran Alm/Almh)
+ *  IDDAH_SELESAI:istri|suami     tanggal selesai masa iddah (istri) / iddah mantan istri (suami, syibhul iddah)
+ *  SYIBHUL_IDDAH:suami           "Ya" bila akad calon suami (cerai talak) masih dalam masa iddah mantan istrinya
  *  CATIN:<pola>                  pola berisi {p} = suami/istri sesuai catin pengajuan ini
  *  PASANGAN:<pola>               {p} = pasangannya
  * Otomatis juga:
@@ -157,7 +179,8 @@ function lkDerive(data, fields, ctx) {
     if (nm && lkStr(out[p + '_status_keberadaan']) === LK_MENINGGAL && !/\(alm/i.test(nm)) out[p + '_nama'] = nm + (p.indexOf('ayah') === 0 ? ' (Alm)' : ' (Almh)');
   });
   var list = fields || [];
-  // Tahap 1: umur, alamat, sistem
+  var iddah = lkIddah(out, cfg);
+  // Tahap 1: umur, alamat, sistem, bin/binti, iddah
   list.forEach(function (f) {
     var t = lkStr(f.turunan);
     if (!t) return;
@@ -165,6 +188,9 @@ function lkDerive(data, fields, ctx) {
     var jenis = t.slice(0, i), arg = t.slice(i + 1);
     if (jenis === 'UMUR_AKAD') out[f.field_key] = String(lkUmur(out[arg], out.akad_tanggal));
     else if (jenis === 'ALAMAT' && arg.indexOf('{p}') < 0) out[f.field_key] = lkAlamatLengkap(out, arg);
+    else if (jenis === 'BIN') out[f.field_key] = lkTanpaAlm(out[arg + '_nama']);
+    else if (jenis === 'IDDAH_SELESAI') out[f.field_key] = iddah[arg] ? iddah[arg].selesai : '';
+    else if (jenis === 'SYIBHUL_IDDAH') out[f.field_key] = iddah.suami && iddah.suami.dalamIddah ? 'Ya' : '';
     else if (jenis === 'SYS') {
       if (arg === 'nomor_pengajuan') out[f.field_key] = ctx.id || '';
       else if (arg === 'tanggal_cetak') out[f.field_key] = ctx.today || '';
@@ -335,6 +361,46 @@ function lkPackage(der, rules, templates, fields) {
     .sort(function (a, b) { return a.urutan - b.urutan || ord[a.untuk] - ord[b.untuk]; });
 }
 
+/** Nama tanpa akhiran "(Alm)" / "(Almh)". */
+function lkTanpaAlm(nm) { return lkStr(nm).replace(/\s*\(\s*alm\.?h?\s*\)\s*$/i, ''); }
+
+/* ---------------- MASA IDDAH ---------------- */
+
+/** Tambah n hari ke tanggal ISO. */
+function lkAddDays(iso, n) { var d = lkDateObj(iso); return d ? lkIso(new Date(d.getTime() + n * 86400000)) : ''; }
+
+/**
+ * Masa iddah (KHI Pasal 153):
+ *  - Janda Cerai Hidup: tanggal akta cerai + 90 hari (3 kali suci, minimal 90 hari)
+ *  - Janda Cerai Mati : tanggal meninggal suami + 130 hari
+ *  - Duda Cerai Hidup karena Cerai Talak: iddah mantan istri (syibhul iddah) = tanggal akta cerai + 90 hari
+ * Batas (ketentuan KUA Sawoo): iddah selesai 5 Jan → surat desa paling cepat 6 Jan, akad paling cepat 7 Jan.
+ * Angka bisa diubah di AppConfig: IDDAH_CERAI_HIDUP, IDDAH_CERAI_MATI, IDDAH_SURAT_SETELAH, IDDAH_AKAD_SETELAH.
+ * Hasil: {istri:{jenis, dasar, hari, selesai, minSurat, minAkad}, suami:{..., dalamIddah}}
+ */
+function lkIddah(d, cfg) {
+  cfg = cfg || {};
+  var num = function (v, def) { var n = Number(v); return v === '' || v === undefined || v === null || isNaN(n) ? def : n; };
+  var hidup = num(cfg.iddah_cerai_hidup, 90), mati = num(cfg.iddah_cerai_mati, 130);
+  var sb = num(cfg.iddah_surat_setelah, 1), ab = num(cfg.iddah_akad_setelah, 2);
+  var make = function (jenis, dasar, hari) {
+    if (!lkParseDate(dasar)) return null;
+    var selesai = lkAddDays(dasar, hari);
+    return { jenis: jenis, dasar: dasar, hari: hari, selesai: selesai, minSurat: lkAddDays(selesai, sb), minAkad: lkAddDays(selesai, ab) };
+  };
+  var out = {};
+  var si = lkStr(d.istri_status_perkawinan);
+  if (si === 'Janda Cerai Hidup') out.istri = make('cerai hidup', d.ks_istri_cerai_tanggal, hidup);
+  else if (si === 'Janda Cerai Mati') out.istri = make('cerai mati', d.ks_istri_kematian_tanggal, mati);
+  if (lkStr(d.suami_status_perkawinan) === 'Duda Cerai Hidup' && lkStr(d.ks_suami_jenis_cerai) === LK_CERAI_TALAK) {
+    out.suami = make('syibhul iddah', d.ks_suami_cerai_tanggal, hidup);
+    if (out.suami) out.suami.dalamIddah = lkParseDate(d.akad_tanggal) ? lkStr(d.akad_tanggal) < out.suami.minAkad : false;
+  }
+  if (!out.istri) delete out.istri;
+  if (!out.suami) delete out.suami;
+  return out;
+}
+
 /* ---------------- KALENDER: HARI KERJA & JAM AKAD ---------------- */
 
 function lkDateObj(s) { var d = lkParseDate(s); return d ? new Date(Date.UTC(d.y, d.m - 1, d.d)) : null; }
@@ -403,6 +469,39 @@ function lkSystemChecks(d, ctx) {
   var hk = lkHariKerjaAntara(d.adm_tanggal_surat, tgl, libur);
   if (hk !== null && lkDateObj(tgl) > lkDateObj(d.adm_tanggal_surat) && hk < min) {
     w.push({ tingkat: 'PERINGATAN', field: 'akad_tanggal', pesan: 'Pendaftaran terlambat: hanya ' + hk + ' hari kerja sebelum akad (minimal ' + min + ' hari kerja). Diperlukan surat dispensasi pendaftaran nikah dari Kecamatan (Camat).' });
+  }
+  // Masa iddah calon istri (janda): surat desa & akad tidak boleh sebelum batas
+  var idd = lkIddah(d, cfg);
+  if (idd.istri) {
+    var ii = idd.istri, kf = ii.jenis === 'cerai mati' ? 'ks_istri_kematian_tanggal' : 'ks_istri_cerai_tanggal';
+    var lewatS = lkParseDate(d.adm_tanggal_surat) && lkStr(d.adm_tanggal_surat) < ii.minSurat;
+    var lewatA = lkParseDate(tgl) && tgl < ii.minAkad;
+    var info = 'Masa iddah calon istri (' + ii.jenis + ': ' + ii.hari + ' hari sejak ' + (ii.jenis === 'cerai mati' ? 'suami meninggal' : 'tanggal akta cerai') + ') selesai ' + lkTanggalPanjang(ii.selesai) + '. Tanggal surat desa paling cepat ' + lkTanggalPanjang(ii.minSurat) + ', tanggal akad paling cepat ' + lkTanggalPanjang(ii.minAkad) + '.';
+    w.push({ tingkat: lewatS || lewatA ? 'PERINGATAN' : 'INFO', field: kf, hint: true, iddah: ii, pesan: info + (lewatS || lewatA ? ' Ubah jadwal di langkah 1 (Jadwal Akad).' : '') });
+    if (lewatS) w.push({ tingkat: 'BLOKIR', field: 'adm_tanggal_surat', fix: { field: 'adm_tanggal_surat', value: ii.minSurat, label: 'Pakai tanggal surat ' + lkTanggalPanjang(ii.minSurat) },
+      pesan: 'Calon istri masih dalam masa iddah (selesai ' + lkTanggalPanjang(ii.selesai) + '). Tanggal surat desa paling cepat ' + lkTanggalPanjang(ii.minSurat) + ' — boleh diubah ke tanggal itu walau surat disiapkan lebih awal.' });
+    if (lewatA) {
+      var fa = ii.minAkad;
+      for (var g = 0; kantor && lkHariTutup(fa, libur) && g < 30; g++) fa = lkAddDays(fa, 1);   // Kantor KUA: lompati hari tutup
+      w.push({ tingkat: 'BLOKIR', field: 'akad_tanggal', fix: { field: 'akad_tanggal', value: fa, label: 'Pakai tanggal akad ' + lkHari(fa) + ', ' + lkTanggalPanjang(fa) },
+        pesan: 'Calon istri masih dalam masa iddah (selesai ' + lkTanggalPanjang(ii.selesai) + '). Tanggal akad paling cepat ' + lkTanggalPanjang(ii.minAkad) + '.' });
+    }
+  }
+  // Tanggal meninggal tidak mungkin sesudah akta kematian terbit
+  ['suami', 'istri'].forEach(function (p) {
+    var tm = lkStr(d['ks_' + p + '_kematian_tanggal']), ta = lkStr(d['ks_' + p + '_dok_tanggal']);
+    if (lkParseDate(tm) && lkParseDate(ta) && tm > ta) w.push({ tingkat: 'BLOKIR', field: 'ks_' + p + '_kematian_tanggal', pesan: 'Tanggal meninggal tidak boleh sesudah tanggal akta kematian (' + lkTanggalPanjang(ta) + ').' });
+  });
+  // Syibhul iddah: duda cerai talak menikah saat mantan istrinya masih dalam masa iddah
+  if (idd.suami) {
+    var is = idd.suami;
+    if (is.dalamIddah) {
+      var blokS = lkStr(cfg.syibhul_iddah).toUpperCase() === 'BLOKIR';
+      w.push({ tingkat: blokS ? 'BLOKIR' : 'PERINGATAN', field: 'ks_suami_cerai_tanggal', pesan: 'Syibhul iddah: akad calon suami masih dalam masa iddah mantan istrinya (selesai ' + lkTanggalPanjang(is.selesai) + '). ' +
+        (blokS ? 'Akad paling cepat ' + lkTanggalPanjang(is.minAkad) + '.' : 'Pengajuan tetap bisa, dengan Surat Pernyataan Tidak Akan Merujuk Mantan Istri (otomatis disertakan).') });
+    } else if (lkParseDate(tgl)) {
+      w.push({ tingkat: 'INFO', field: 'ks_suami_cerai_tanggal', hint: true, pesan: 'Masa iddah mantan istri selesai ' + lkTanggalPanjang(is.selesai) + ' — akad sesudahnya, tidak perlu surat pernyataan tambahan.' });
+    }
   }
   if (lkStr(d.suami_status_perkawinan) === 'Kawin') {
     w.push({ tingkat: 'PERINGATAN', field: 'suami_status_perkawinan', pesan: 'Calon suami berstatus Kawin (beristri lebih dari seorang) — wajib izin Pengadilan Agama.' });
@@ -532,6 +631,7 @@ if (typeof module !== 'undefined' && module.exports) {
     lkValidate: lkValidate, lkPackage: lkPackage, lkWarnings: lkWarnings, lkFormat: lkFormat, lkSystemChecks: lkSystemChecks,
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
-    lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital
+    lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN
   };
 }

@@ -753,5 +753,59 @@ var Master = (function () {
     });
   }
 
-  return { akun: akun, field: field, template: template, aturan: aturan, libur: libur, editField: editField, describe: describe };
+  /* ---------------- INTEGRASI & WHATSAPP ---------------- */
+  async function integrasi(main) {
+    var hash = location.hash;
+    main.innerHTML = head('INTEGRASI & WHATSAPP', 'Data Master') + '<div class="card card-body"><div class="skel" style="width:40%"></div><div class="skel mt-s" style="width:70%"></div></div>';
+    var r = await API.call('getIntegrasi', {});
+    if (location.hash !== hash) return;
+    if (!r.success) { main.querySelector('.card').innerHTML = '<div class="banner danger">' + icon('xCircle') + '<div class="txt">' + esc(r.message) + '</div></div>'; return; }
+    var V = {};
+    r.data.forEach(function (x) { V[x.key] = x; });
+    var inp = function (k, label, ph, type) {
+      var x = V[k] || { value: '', keterangan: '' };
+      return '<div class="field"><label>' + esc(label) + '</label><input class="input" data-ik="' + k + '" value="' + esc(x.value) + '" placeholder="' + esc(ph || '') + '"' + (type ? ' type="' + type + '"' : '') + ' autocomplete="off"><div class="help">' + esc(x.keterangan) + '</div></div>';
+    };
+    var tujuan = function (kode, nama, isi) {
+      return '<div class="card topline"><div class="card-head"><h2>' + icon('plug', 18) + ' ' + esc(nama) + '</h2><div class="end"><button class="btn btn-sm" data-test="' + kode + '">' + icon('refresh', 15) + 'Uji Koneksi</button></div></div><div class="card-body">' +
+        '<p class="muted" style="margin-top:0">' + isi + '</p><div class="form-grid">' +
+        inp(kode + '_URL', 'URL API ' + nama + ' (/exec)', 'https://script.google.com/macros/s/…/exec') +
+        inp(kode + '_KEY', 'Kunci KUA-Link', 'hasil aturKunciKUALink()', 'password') + '</div></div></div>';
+    };
+    main.innerHTML = head('INTEGRASI & WHATSAPP', 'Data Master') +
+      '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Setelah desa menekan <b>Simpan &amp; Cetak</b>, paket PDF lengkap disimpan di Drive, lalu: <b>WhatsApp</b> ke nomor KUA terbuka otomatis (bukti daftar + tautan PDF), ' +
+      '<b>nikah di wilayah</b> → masuk <b>Akad Tracker</b> + <b>LABUKU Desk</b> (Pendaftaran Kehendak Nikah), <b>luar wilayah</b> → masuk <b>LABUKU Desk</b> saja (Rekomendasi Nikah). ' +
+      'Pembatalan ikut mengubah status di aplikasi tujuan menjadi BATAL.</div></div>' +
+      '<div class="card topline tone-gold"><div class="card-head"><h2>' + icon('chat', 18) + ' WhatsApp KUA</h2></div><div class="card-body"><div class="form-grid">' +
+      inp('WA_KUA', 'Nomor WhatsApp KUA', '08xxxxxxxxxx', 'tel') +
+      '<div class="field"><label>Tautan PDF paket</label><select class="select" data-ik="PAKET_LINK_PUBLIK">' + UI.options([{ v: 'TRUE', l: 'Bisa dibuka siapa saja yang punya tautan' }, { v: 'FALSE', l: 'Hanya akun yang diberi akses' }], String((V.PAKET_LINK_PUBLIK || {}).value || 'TRUE').toUpperCase()) + '</select>' +
+      '<div class="help">Tautan berisi data pribadi (NIK). "Siapa saja" diperlukan agar bisa dibuka dari WhatsApp tanpa login; jangan teruskan pesan ke pihak lain.</div></div></div></div></div>' +
+      tujuan('AKAD_TRACKER', 'Akad Tracker', 'Hanya <b>nikah di wilayah</b>: langsung menjadi jadwal akad (sumber KUA-Link). Penghulu, modin &amp; perubahan jam oleh tim KUA tidak tertimpa saat desa mencetak ulang.') +
+      tujuan('LABUKU_DESK', 'LABUKU Desk', 'Menjadi layanan <b>Pendaftaran Kehendak Nikah</b> (nikah di wilayah) atau <b>Penerbitan Surat Rekomendasi Nikah</b> (luar wilayah), berstatus <b>Pending</b> sampai catin datang — Front Office cukup Tambah Antrean dengan NIK catin.') +
+      '<div class="banner warn">' + icon('alert') + '<div class="txt"><b>URL</b> = URL Web App /exec aplikasi itu (sama dengan <code>GAS_URL</code> di <code>js/config.js</code> frontend-nya). <b>Kunci</b> = hasil menjalankan <b>aturKunciKUALink</b> di editor Apps Script aplikasi itu (lihat Execution log). Panduan Bagian K. Kiriman yang gagal dicoba ulang otomatis tiap 30 menit.</div></div>' +
+      '<div class="row end"><button class="btn btn-primary" data-isave>' + icon('save') + 'Simpan Pengaturan</button></div></div>';
+    App.bindRefresh(main);
+    var collect = function () { var o = {}; UI.$$('[data-ik]', main).forEach(function (el) { o[el.dataset.ik] = el.value.trim(); }); return o; };
+    main.querySelector('[data-isave]').onclick = function () {
+      var b = this;
+      UI.busy(b, async function () {
+        var x = await API.call('saveIntegrasi', { values: collect() });
+        if (!x.success) return UI.toast(x.message, 'error');
+        UI.toast('Pengaturan integrasi tersimpan.');
+        if (S.master && S.master.config) S.master.config.wa_kua_ada = !!collect().WA_KUA;
+      });
+    };
+    UI.$$('[data-test]', main).forEach(function (b) {
+      b.onclick = function () {
+        UI.busy(b, async function () {
+          var sv = await API.call('saveIntegrasi', { values: collect() });
+          if (!sv.success) return UI.toast(sv.message, 'error');
+          var t = await API.call('testIntegrasi', { kode: b.dataset.test }, { timeout: 60000 });
+          UI.toast(t.message, t.success ? 'success' : 'error');
+        });
+      };
+    });
+  }
+
+  return { akun: akun, field: field, template: template, aturan: aturan, libur: libur, integrasi: integrasi, editField: editField, describe: describe };
 })();

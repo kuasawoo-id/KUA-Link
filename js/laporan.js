@@ -12,7 +12,7 @@ var Laporan = (function () {
   var AF = { q: '', aksi: '', desa: '' }, LF = { desa: '', hasil: '' };
   var AKSI_LABEL = {
     BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak', EDIT_KUA: 'Edit oleh KUA', EDIT_DESA: 'Edit oleh desa',
-    BATALKAN: 'Batalkan', AKTIFKAN_KEMBALI: 'Aktifkan kembali', UBAH_PROFIL: 'Ubah profil akun', UBAH_PROFIL_DESA: 'Ubah data desa',
+    BATALKAN: 'Batalkan (status Batal)', KIRIM_KUA: 'Kirim ke KUA', UBAH_INTEGRASI: 'Ubah pengaturan integrasi', AKTIFKAN_KEMBALI: 'Aktifkan kembali', UBAH_PROFIL: 'Ubah profil akun', UBAH_PROFIL_DESA: 'Ubah data desa',
     SIMPAN_LIBUR: 'Simpan hari libur', HAPUS_LIBUR: 'Hapus hari libur',
     BUAT_PASANGAN: 'Buat pengajuan pasangan', TAUTKAN_PASANGAN: 'Tautkan pasangan', GANTI_PASSWORD: 'Ganti password', RESET_PASSWORD: 'Reset password',
     BUAT_AKUN: 'Buat akun', UBAH_AKUN: 'Ubah akun', BUKA_KUNCI_AKUN: 'Buka kunci akun', SIMPAN_DESA: 'Simpan desa', TAMBAH_FIELD: 'Tambah field',

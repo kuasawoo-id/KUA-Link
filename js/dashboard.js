@@ -85,10 +85,10 @@ var Dashboard = (function () {
         Rekomendasi: a.filter(function (p) { return p.jenis === 'REKOMENDASI_KELUAR'; }).length,
         'Catin < 21': a.filter(function (p) { var u = umurCatin(p); return u !== null && u < 21; }).length,
         Draf: r.filter(function (p) { return p.status === 'DRAF'; }).length, 'Siap Cetak': r.filter(function (p) { return p.status === 'SELESAI'; }).length,
-        Dibatalkan: r.filter(function (p) { return p.status === 'DIBATALKAN'; }).length, Total: r.length
+        Batal: r.filter(function (p) { return p.status === 'DIBATALKAN'; }).length, Total: r.length
       };
     });
-    var cols = ['Nikah di Wilayah', 'Rekomendasi', 'Catin < 21', 'Draf', 'Siap Cetak', 'Dibatalkan', 'Total'];
+    var cols = ['Nikah di Wilayah', 'Rekomendasi', 'Catin < 21', 'Draf', 'Siap Cetak', 'Batal', 'Total'];
     var sum = {};
     cols.forEach(function (k) { sum[k] = recap.reduce(function (s, r) { return s + r[k]; }, 0); });
     var maxD = Math.max.apply(null, [1].concat(recap.map(function (r) { return Math.max(r['Nikah di Wilayah'], r.Rekomendasi); })));
@@ -105,7 +105,7 @@ var Dashboard = (function () {
       stat('Total Pengajuan', aktif.length, per + (F.desa ? ' · ' + App.desaName(F.desa) : ''), 'file', 'green', '#/pengajuan') +
       stat('Siap Cetak', c.SELESAI, 'data lengkap', 'printer', 'gold', '#/pengajuan?status=SELESAI') +
       stat('Draf', c.DRAF, 'belum lengkap', 'pencil', 'slate', '#/pengajuan?status=DRAF') +
-      stat('Dibatalkan', c.DIBATALKAN, 'periode ini', 'xCircle', 'red', '#/pengajuan?status=DIBATALKAN') + '</div>' +
+      stat('Batal', c.DIBATALKAN, 'periode ini', 'xCircle', 'red', '#/pengajuan?status=DIBATALKAN') + '</div>' +
       '<div class="grid g4">' +
       stat('Nikah di Wilayah', nk, 'Kec. ' + S.master.config.kecamatan, 'heart', 'green') +
       stat('Rekomendasi', rk, 'nikah di luar wilayah', 'external', 'blue') +

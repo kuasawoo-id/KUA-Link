@@ -7,6 +7,9 @@ var UI = (function () {
     menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
     bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
     search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+    chat: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+    plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
     grid: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
     file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
@@ -81,7 +84,7 @@ var UI = (function () {
     var w = String(name || '?').replace(/\(.*\)/, '').trim().split(/\s+/).filter(Boolean);
     return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
   }
-  var STATUS_LABEL = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Dibatalkan' };
+  var STATUS_LABEL = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Batal' };
   function pill(status) { return '<span class="pill s-' + esc(status) + '">' + esc(STATUS_LABEL[status] || status || '–') + '</span>'; }
   function statusPills(p) { return pill(p.status); }
   function debounce(fn, ms) { var t; return function () { var a = arguments, self = this; clearTimeout(t); t = setTimeout(function () { fn.apply(self, a); }, ms); }; }
@@ -391,6 +394,65 @@ var UI = (function () {
     }, 0);
   }
 
+  /**
+   * Pilihan dengan pencarian (untuk daftar panjang, mis. 106 jenis pekerjaan Dukcapil).
+   * Desktop: popover di bawah isian · HP (≤720px): lembar bawah layar penuh-lebar dengan kotak cari.
+   * opts: {title, options:[{v,l}], value, onPick(v)}
+   */
+  function choicePicker(anchor, opts) {
+    closeDatePicker();
+    var pop = document.createElement('div');
+    pop.className = 'dp cp';
+    pop.setAttribute('role', 'dialog');
+    var sheet = window.innerWidth <= 720;
+    if (sheet) pop.classList.add('sheet');
+    pop.innerHTML = '<div class="cp-h"><b>' + esc(opts.title || 'Pilih') + '</b><button type="button" class="btn btn-ghost btn-icon" data-x aria-label="Tutup">' + icon('x', 18) + '</button></div>' +
+      '<div class="cp-s">' + icon('search', 16) + '<input type="search" class="input" placeholder="Ketik untuk mencari…" autocomplete="off" enterkeyhint="search"></div>' +
+      '<div class="cp-l" role="listbox"></div>';
+    document.body.appendChild(pop);
+    var q = pop.querySelector('input'), list = pop.querySelector('.cp-l');
+    var shown = [];
+    function draw() {
+      var t = q.value.trim().toLowerCase();
+      shown = opts.options.filter(function (o) { return !t || o.l.toLowerCase().indexOf(t) >= 0; });
+      list.innerHTML = shown.length ? shown.map(function (o, i) {
+        return '<button type="button" class="cp-o' + (o.v === opts.value ? ' sel' : '') + (i === 0 && t ? ' hl' : '') + '" data-i="' + i + '" role="option">' + esc(o.l) + (o.v === opts.value ? icon('check', 16) : '') + '</button>';
+      }).join('') : '<div class="cp-empty">Tidak ditemukan "' + esc(q.value) + '"</div>';
+    }
+    function pick(i) { var o = shown[i]; if (!o) return; closeDatePicker(); opts.onPick(o.v); }
+    function place() {
+      if (sheet) return;
+      var r = anchor.getBoundingClientRect();
+      pop.style.width = Math.max(300, r.width) + 'px';
+      var top = r.bottom + 6, left = r.left;
+      if (top + pop.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - pop.offsetHeight - 6);
+      if (left + pop.offsetWidth > window.innerWidth - 8) left = window.innerWidth - pop.offsetWidth - 8;
+      pop.style.top = top + 'px'; pop.style.left = Math.max(8, left) + 'px';
+    }
+    q.addEventListener('input', draw);
+    q.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); pick(0); }
+      if (e.key === 'Escape') { closeDatePicker(); anchor.focus(); }
+    });
+    pop.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    pop.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-x')) { closeDatePicker(); return; }
+      if (b.dataset.i !== undefined) pick(Number(b.dataset.i));
+    });
+    draw(); place();
+    var sel = list.querySelector('.sel');
+    if (sel) sel.scrollIntoView({ block: 'center' });
+    // Desktop: langsung bisa mengetik. HP: keyboard baru muncul saat kotak cari disentuh (daftar tetap terlihat penuh).
+    if (!sheet) q.focus();
+    openDp = pop;
+    setTimeout(function () {
+      var h = function (e) { if (openDp === pop && !pop.contains(e.target) && e.target !== anchor) { closeDatePicker(); document.removeEventListener('mousedown', h); } };
+      document.addEventListener('mousedown', h);
+    }, 0);
+  }
+
   /* ---------------- KOMPONEN HTML ---------------- */
   function emptyState(title, sub, action) {
     return '<div class="empty">' + icon('file', 40) + '<b>' + esc(title) + '</b><div>' + esc(sub || '') + '</div>' + (action ? '<div class="mt-s">' + action + '</div>' : '') + '</div>';
@@ -426,7 +488,7 @@ var UI = (function () {
 
   return {
     icon: icon, esc: esc, tgl: tgl, waktu: waktu, today: today, nowTime: nowTime, initials: initials, pill: pill,
-    datePicker: datePicker, closeDatePicker: closeDatePicker,
+    datePicker: datePicker, closeDatePicker: closeDatePicker, choicePicker: choicePicker,
     statusPills: statusPills, STATUS_LABEL: STATUS_LABEL, debounce: debounce, $: $, $$: $$, toast: toast, modal: modal, confirm: confirm,
     prompt: prompt, drawer: drawer, menu: menu, closeMenu: closeMenu, busy: busy, loadScript: loadScript, mergePdf: mergePdf,
     openBlob: openBlob, downloadBlob: downloadBlob, preOpen: preOpen, exportXlsx: exportXlsx, emptyState: emptyState,

@@ -8,6 +8,8 @@
  *    saat pindah langkah, atau saat tombol Simpan Draf ditekan).
  *  - Formulir dibangun dari Field Dictionary; isian lanjutan (status
  *    perkawinan, izin orang tua, wali) muncul otomatis tepat di bawahnya.
+ *  - Langkah 2 & 3 dibagi tab: Calon | Ayah | Ibu | (Pemberi Izin) | (Wali Nikah)
+ *    agar formulir tidak memanjang ke bawah (nyaman di HP).
  *  - Tidak ada penguncian: desa & KUA tetap bisa mengedit, lalu cetak ulang.
  * ===================================================================== */
 var Formulir = (function () {
@@ -49,7 +51,7 @@ var Formulir = (function () {
     if (window.Detail) Detail.close(true);
     forceClose(true);
     if (!id && App.isKua()) { UI.toast('Pengajuan baru dibuat oleh operator desa.', 'info'); App.go(S.baseHash); return; }
-    W = { id: id, data: {}, rowVersion: null, status: 'DRAF', step: 1, dirtyServer: false, saving: null, pending: false, lastSaved: null, errSteps: {}, p: null, dokumen: [], visited: { 1: true }, finished: false, autoTempat: '' };
+    W = { id: id, data: {}, rowVersion: null, status: 'DRAF', step: 1, sub: { 2: 'Calon Suami', 3: 'Calon Istri' }, dirtyServer: false, saving: null, pending: false, lastSaved: null, errSteps: {}, p: null, dokumen: [], visited: { 1: true }, finished: false, autoTempat: '' };
     mount();
     if (!id) {
       W.data = defaults();
@@ -92,7 +94,7 @@ var Formulir = (function () {
     var o = document.createElement('div');
     o.className = 'overlay';
     o.id = 'formOv';
-    o.innerHTML = '<div class="ov-top"></div><div class="steps"></div><div class="meta-line"></div><div class="subtabs jumpnav hidden"></div><div class="ov-scroll"></div><div class="ov-bottom"></div>';
+    o.innerHTML = '<div class="ov-top"></div><div class="steps"></div><div class="meta-line"></div><div class="subtabs ftabs hidden" role="tablist"></div><div class="ov-scroll"></div><div class="ov-bottom"></div>';
     document.getElementById('overlayRoot').appendChild(o);
   }
 
@@ -251,19 +253,49 @@ var Formulir = (function () {
     setSaveStatus(saveState.s, saveState.msg);
   }
 
-  /** Navigasi cepat antar kartu di langkah 2 & 3. */
-  function renderJump(groups) {
-    var box = el().querySelector('.jumpnav');
-    if (!groups || groups.length < 2) { box.classList.add('hidden'); return; }
+  /** Tab di langkah 2 & 3: Calon | Ayah | Ibu | (Pemberi Izin) | (Wali Nikah). */
+  function renderTabs(groups) {
+    var box = el().querySelector('.ftabs');
+    if (!groups || groups.length < 2) { box.classList.add('hidden'); box.innerHTML = ''; return; }
     box.classList.remove('hidden');
     var se = showErr(W.step) ? stepErrors().list : [];
-    box.innerHTML = groups.map(function (g) {
+    box.innerHTML = groups.map(function (g, i) {
       var n = se.filter(function (e) { return e.grup === g.key; }).length;
-      return '<button class="subtab" data-jump="' + esc(g.key) + '">' + esc(groupTitle(g).replace(/ \(N5\)$/, '')) + (n ? '<span class="adot" title="' + n + ' isian perlu dilengkapi"></span>' : '') + '</button>';
+      var on = g.key === W.sub[W.step];
+      return '<button class="subtab' + (on ? ' active' : '') + '" role="tab" aria-selected="' + on + '" data-tab="' + esc(g.key) + '"><span class="tn">' + (i + 1) + '</span>' + esc(g.tab || groupTitle(g)) +
+        (n ? '<span class="adot" title="' + n + ' isian perlu dilengkapi"></span>' : '') + '</button>';
     }).join('');
-    UI.$$('[data-jump]', box).forEach(function (b) {
-      b.onclick = function () { var t = el().querySelector('[data-grp-anchor="' + b.dataset.jump + '"]'); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
-    });
+    UI.$$('[data-tab]', box).forEach(function (b) { b.onclick = function () { goTab(b.dataset.tab); }; });
+    var act = box.querySelector('.active');
+    if (act && act.scrollIntoView) { try { act.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) { /* abaikan */ } }
+  }
+
+  /** Grup aktif langkah 2/3 (jatuh ke tab pertama bila tab terpilih tidak tampil). */
+  function activeGroup(groups) {
+    var g = groups.find(function (x) { return x.key === W.sub[W.step]; }) || groups[0];
+    if (g) W.sub[W.step] = g.key;
+    return g;
+  }
+  function goTab(key) {
+    if (!W || W.sub[W.step] === key) return;
+    W.sub[W.step] = key;
+    UI.closeDatePicker();
+    renderBody(); renderBottom();
+    el().querySelector('.ov-scroll').scrollTop = 0;
+  }
+  /** Pindah ke tab berikutnya; isian wajib tab ini harus lengkap dulu. */
+  function nextTab(groups, idx) {
+    var cur = groups[idx];
+    var errs = stepErrors().list.filter(function (e) { return e.grup === cur.key; });
+    if (errs.length) {
+      W.errSteps[W.step] = true;
+      renderBody(); renderSteps();
+      var first = el().querySelector('.field.err');
+      if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); var i = first.querySelector('input,select,textarea'); if (i) setTimeout(function () { i.focus({ preventScroll: true }); }, 250); }
+      return UI.toast('Lengkapi ' + errs.length + ' isian bertanda merah di tab "' + (cur.tab || cur.key) + '".', 'warning');
+    }
+    serverSave();
+    goTab(groups[idx + 1].key);
   }
 
   function visibleGroups(step) {
@@ -279,7 +311,8 @@ var Formulir = (function () {
     if (W.step === LAST) html += reviewHtml();
     else {
       groups = visibleGroups(W.step);
-      html += groups.map(groupCards).join('') || '<div class="card">' + UI.emptyState('Tidak ada isian', '') + '</div>';
+      var shown = W.step === 1 ? groups : [activeGroup(groups)].filter(Boolean);
+      html += shown.map(groupCards).join('') || '<div class="card">' + UI.emptyState('Tidak ada isian', '') + '</div>';
     }
     html += '</div>';
     var ae = document.activeElement;
@@ -289,7 +322,7 @@ var Formulir = (function () {
     var scrollTop = sc.scrollTop;
     sc.innerHTML = html;
     sc.scrollTop = scrollTop;
-    renderJump(W.step === 2 || W.step === 3 ? groups : null);
+    renderTabs(W.step === 2 || W.step === 3 ? groups : null);
     W.visSig = visSig();
     bindBody(sc);
     if (focus) {
@@ -313,14 +346,14 @@ var Formulir = (function () {
     var errMap = {};
     if (showErr(g.step)) allErrors().forEach(function (e) { if (!errMap[e.field]) errMap[e.field] = e.pesan; });
     var sysMap = {};
-    lkWarnings(der, [], wctx()).forEach(function (w) { if (w.field && !(w.tingkat === 'BLOKIR' && errMap[w.field] === w.pesan)) (sysMap[w.field] = sysMap[w.field] || []).push(w); });
+    lkWarnings(der, [], wctx()).forEach(function (w) { if (w.field && (w.fix || !(w.tingkat === 'BLOKIR' && errMap[w.field] === w.pesan))) (sysMap[w.field] = sysMap[w.field] || []).push(w); });
     var seksi = [];
     list.forEach(function (f) {
       var s = f.seksi || groupTitle(g).toUpperCase();
       var last = seksi[seksi.length - 1];
       if (!last || last.s !== s) seksi.push({ s: s, f: [f] }); else last.f.push(f);
     });
-    var html = '<div data-grp-anchor="' + esc(g.key) + '" class="grp-anchor"></div>';
+    var html = '';
     if (/^Izin Orang Tua/.test(g.key)) {
       html += '<div class="banner warn" style="margin-bottom:12px">' + icon('alert') + '<div class="txt"><b>Kedua orang tua ' + (g.prefix === 'izin_suami' ? 'calon suami' : 'calon istri') + ' meninggal / tidak diketahui keberadaannya</b> dan catin belum 21 tahun. Isi siapa yang bertanggung jawab memberi izin (UU 1/1974 Pasal 6 ayat 4). Data ini dipakai di Surat Izin (N5).</div></div>';
     }
@@ -348,7 +381,7 @@ var Formulir = (function () {
     return '<div class="card form-card topline tone-gold"><div class="card-head"><h3>IDENTITAS WALI</h3><div class="end"><span class="tag">Otomatis dari data Ayah Calon Istri</span></div></div><div class="card-body">' +
       (mati ? '<div class="banner danger" style="margin-bottom:12px">' + icon('xCircle') + '<div class="txt">Ayah calon istri berstatus <b>' + esc(W.data.ayah_istri_status_keberadaan) + '</b>. Pilih wali nasab berikutnya atau wali hakim.</div></div>' : '') +
       '<div class="kv">' + rows.map(function (r) { return App.kv(r[0], r[1] || '–'); }).join('') + '</div>' +
-      '<p class="muted" style="font-size:12.5px;margin:12px 0 0">Untuk mengubah, edit data di bagian <a href="#" data-jumpto="Ayah Istri">Ayah Calon Istri</a>.' + (fm.wali_nama ? '' : '') + '</p></div></div>';
+      '<p class="muted" style="font-size:12.5px;margin:12px 0 0">Untuk mengubah, edit data di tab <a href="#" data-jumpto="Ayah Istri">Ayah</a>.' + (fm.wali_nama ? '' : '') + '</p></div></div>';
   }
 
   function jamOptions(v) {
@@ -380,15 +413,31 @@ var Formulir = (function () {
           ctl = '<div class="input-wrap"><input class="input mono" inputmode="numeric" maxlength="16" autocomplete="off"' + common + ' value="' + esc(v) + '" style="padding-right:70px">' +
             '<span class="suffix' + (v.length === 16 ? ' good' : '') + '" data-nikc="' + esc(k) + '">' + (v.length === 16 ? '✓ ' : '') + v.length + '/16</span></div>';
           break;
-        case 'PILIHAN': ctl = '<select class="select"' + common + '>' + UI.options(lkParseOpsi(f.opsi), v, '— Pilih —') + '</select>'; break;
+        case 'PILIHAN':
+          var ops = lkParseOpsi(f.opsi);
+          // Daftar panjang (mis. 106 pekerjaan Dukcapil): pilihan dengan kotak cari
+          if (ops.length > 12) ctl = '<div class="input-wrap"><input class="input cp-input" readonly' + common + ' data-cp value="' + esc(v ? lkOpsiLabel(f, v) : '') + '" placeholder="— Pilih —"><span class="suffix">' + icon('chevD', 16) + '</span></div>';
+          else ctl = '<select class="select"' + common + '>' + UI.options(ops, v, '— Pilih —') + '</select>';
+          break;
         case 'YA_TIDAK': ctl = '<select class="select"' + common + '>' + UI.options([{ v: 'Ya', l: 'Ya' }, { v: 'Tidak', l: 'Tidak' }], v, '— Pilih —') + '</select>'; break;
-        default: ctl = '<input class="input"' + common + ' value="' + esc(v) + '"' + (/_(rt|rw)$/.test(k) ? ' inputmode="numeric" maxlength="3"' : '') + '>';
+        default: ctl = '<input class="input"' + common + ' value="' + esc(v) + '"' + (/_(rt|rw)$/.test(k) ? ' inputmode="numeric" maxlength="3"' : '') + (/_(nama|tempat_lahir|desa|kecamatan|kabupaten|provinsi)$/.test(k) ? ' autocapitalize="words"' : '') + ' enterkeyhint="next">';
       }
     }
     var extra = '';
     if (k === 'suami_tanggal_lahir' || k === 'istri_tanggal_lahir') extra = '<div data-umur="' + k.split('_')[0] + '">' + umurHelp(k.split('_')[0]) + '</div>';
     if (k === 'akad_tanggal') extra = '<div data-akadinfo>' + akadInfo() + '</div>';
-    (sysWarn || []).forEach(function (w) { extra += '<div class="' + (w.tingkat === 'INFO' ? 'info-msg' : w.tingkat === 'BLOKIR' ? 'danger-msg' : 'warn-msg') + '">' + icon(w.tingkat === 'INFO' ? 'info' : 'alert', 13) + ' ' + esc(w.pesan) + '</div>'; });
+    if (k === 'suami_nama' || k === 'istri_nama') {
+      var who = k.split('_')[0], ay = lkTanpaAlm(W.data['ayah_' + who + '_nama']);
+      extra = '<div class="help">' + (who === 'suami' ? 'Bin' : 'Binti') + ': <b>' + esc(ay || '…') + '</b> — otomatis dari nama di tab <a href="#" data-jumpto="Ayah ' + (who === 'suami' ? 'Suami' : 'Istri') + '">Ayah</a></div>';
+    }
+    (sysWarn || []).forEach(function (w) {
+      var dup = w.tingkat === 'BLOKIR' && err === w.pesan;
+      // Perbaikan sekali ketuk (mis. tanggal surat → tanggal paling cepat yang diizinkan masa iddah)
+      if (w.fix) extra += '<button type="button" class="btn btn-sm btn-fix" data-fix="' + esc(w.fix.field) + '" data-fixv="' + esc(w.fix.value) + '">' + icon('check', 14) + esc(w.fix.label) + '</button>';
+      if (dup) return;
+      extra += '<div class="' + (w.tingkat === 'INFO' ? 'info-msg' : w.tingkat === 'BLOKIR' ? 'danger-msg' : 'warn-msg') + '">' + icon(w.tingkat === 'INFO' ? 'info' : 'alert', 13) + ' ' + esc(w.pesan) +
+        (w.hint && w.tingkat !== 'INFO' && W.step !== 1 ? ' <a href="#" data-gostep="1">Ubah jadwal →</a>' : '') + '</div>';
+    });
     var cls = 'field' + full + (err ? ' err' : '') + (/_(rt|rw)$/.test(k) ? ' narrow' : '');
     return '<div class="' + cls + '" data-fk="' + esc(k) + '"><label for="' + id + '" title="' + esc(f.label) + '">' + esc(f.label) + req + '</label>' + ctl + extra +
       (err ? '<div class="msg">' + esc(err) + '</div>' : (f.bantuan ? '<div class="help">' + esc(f.bantuan) + '</div>' : '')) + '</div>';
@@ -433,11 +482,15 @@ var Formulir = (function () {
       setVal(k, v, t, f && f.tipe === 'TANGGAL' ? 'date' : 'text');
     };
     // Tanggal diketik per bagian (hari/bulan/tahun): render ulang setelah selesai (keluar dari isian)
-    sc.onfocusout = function () {
-      if (!W || !W.deferRender) return;
-      W.deferRender = false;
-      setTimeout(function () { if (W && !(document.activeElement && document.activeElement.type === 'date')) { renderBody(); renderSteps(); } else if (W) W.deferRender = true; }, 0);
-    };
+    // Catatan: "onfocusout" bukan properti event di Chrome → wajib addEventListener (cukup sekali per elemen)
+    if (!sc.dataset.fo) {
+      sc.dataset.fo = '1';
+      sc.addEventListener('focusout', function () {
+        if (!W || !W.deferRender) return;
+        W.deferRender = false;
+        setTimeout(function () { if (W && !(document.activeElement && document.activeElement.type === 'date')) { renderBody(); renderSteps(); } else if (W) W.deferRender = true; }, 0);
+      });
+    }
     sc.onchange = function (e) {
       var t = e.target, k = t.dataset && t.dataset.k;
       if (!k || t.tagName !== 'SELECT') return;
@@ -447,10 +500,13 @@ var Formulir = (function () {
       var openDp = function () {
         var kantor = lkStr(W.data.akad_lokasi) === LK_KANTOR;
         var lm = lkLiburMap(S.master.libur);
+        var idd = lkIddah(W.data, S.master.config).istri;
         UI.datePicker(inp, {
           value: W.data.akad_tanggal,
-          note: kantor ? '<span class="sw off"></span> Sabtu, Minggu &amp; hari libur — Kantor KUA tutup' : (lkStr(W.data.akad_lokasi) ? 'Luar Kantor KUA: semua hari bisa dipilih.' : 'Pilih "Nikah Di" lebih dulu agar hari libur ditandai.'),
+          note: (kantor ? '<span class="sw off"></span> Sabtu, Minggu &amp; hari libur — Kantor KUA tutup' : (lkStr(W.data.akad_lokasi) ? 'Luar Kantor KUA: semua hari bisa dipilih.' : 'Pilih "Nikah Di" lebih dulu agar hari libur ditandai.')) +
+            (idd ? '<br>Masa iddah calon istri: akad paling cepat <b>' + esc(lkTanggalPanjang(idd.minAkad)) + '</b>.' : ''),
           dayInfo: function (iso) {
+            if (idd && iso < idd.minAkad) return { off: true, title: 'Masih masa iddah calon istri (selesai ' + lkTanggalPanjang(idd.selesai) + ')' };
             var why = lkHariTutup(iso, lm);
             return { off: kantor && !!why, libur: !!lm[iso], title: why ? (kantor ? 'Kantor KUA tutup: ' : '') + why.charAt(0).toUpperCase() + why.slice(1) : '' };
           },
@@ -460,9 +516,24 @@ var Formulir = (function () {
       inp.onclick = openDp;
       inp.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDp(); } };
     });
+    UI.$$('[data-cp]', sc).forEach(function (inp) {
+      var openCp = function () {
+        var f = App.fieldMap()[inp.dataset.k];
+        if (!f) return;
+        UI.choicePicker(inp, { title: f.label, options: lkParseOpsi(f.opsi), value: W.data[f.field_key], onPick: function (v) { setVal(f.field_key, v, inp, 'select'); } });
+      };
+      inp.onclick = openCp;
+      inp.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); openCp(); } };
+    });
+    UI.$$('[data-fix]', sc).forEach(function (b) {
+      b.onclick = function () { setVal(b.dataset.fix, b.dataset.fixv, b, 'select'); UI.toast('Tanggal diubah ke ' + lkTanggalPanjang(b.dataset.fixv) + '.', 'info'); };
+    });
     UI.$$('[data-copy]', sc).forEach(function (b) { b.onclick = function () { copyFrom(lkGroup(b.dataset.copy)); }; });
     UI.$$('[data-jumpto]', sc).forEach(function (a) {
-      a.onclick = function (e) { e.preventDefault(); var t = sc.querySelector('[data-grp-anchor="' + a.dataset.jumpto + '"]'); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+      a.onclick = function (e) { e.preventDefault(); goTab(a.dataset.jumpto); };
+    });
+    UI.$$('[data-gostep]', sc).forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); var n = Number(a.dataset.gostep); W.step = n; W.visited[n] = true; W.errSteps[n] = true; render(); el().querySelector('.ov-scroll').scrollTop = 0; };
     });
     UI.$$('[data-goto]', sc).forEach(function (a) {
       a.onclick = function (e) {
@@ -470,6 +541,7 @@ var Formulir = (function () {
         var g = lkGroup(a.dataset.grp);
         if (!g) return;
         W.step = g.step; W.visited[g.step] = true; W.errSteps[g.step] = true;
+        if (g.step === 2 || g.step === 3) W.sub[g.step] = g.key;
         render();
         setTimeout(function () { var x = el().querySelector('[data-k="' + a.dataset.goto + '"]'); if (x) { x.scrollIntoView({ block: 'center' }); x.focus(); } }, 30);
       };
@@ -515,7 +587,8 @@ var Formulir = (function () {
       UI.$$('[data-umur]', el()).forEach(function (u) { u.innerHTML = umurHelp(u.dataset.umur); });
     }
     if (/_nama$/.test(k)) renderMeta();
-    if (mode === 'date') W.deferRender = true;
+    if (mode === 'date' && input && document.activeElement === input) W.deferRender = true;   // masih mengetik tanggal → tunggu keluar isian
+    else if (mode === 'date') { renderBody(); renderSteps(); }
     else if (mode === 'select' || visSig() !== W.visSig) { renderBody(); renderSteps(); }
     scheduleServerSave();
   }
@@ -545,6 +618,12 @@ var Formulir = (function () {
         if (se.by[s]) {
           W.errSteps[s] = true;
           if (s !== W.step) { W.step = s; W.visited[s] = true; }
+          if (s === 2 || s === 3) {
+            var eg = se.list.map(function (e) { return lkGroup(e.grup); }).filter(function (g) { return g && g.step === s; });
+            var vis = visibleGroups(s).map(function (g) { return g.key; });
+            var hasCur = eg.some(function (g) { return g.key === W.sub[s]; });
+            if (!hasCur) { var ff = eg.find(function (g) { return vis.indexOf(g.key) >= 0; }); if (ff) W.sub[s] = ff.key; }
+          }
           render();
           var first = el().querySelector('.field.err');
           if (first) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); var i = first.querySelector('input,select,textarea'); if (i) setTimeout(function () { i.focus({ preventScroll: true }); }, 250); }
@@ -553,8 +632,10 @@ var Formulir = (function () {
         }
       }
     }
+    var maju = n > W.step;
     W.step = n;
     W.visited[n] = true;
+    if (maju && (n === 2 || n === 3)) { var vg = visibleGroups(n); if (vg.length) W.sub[n] = vg[0].key; }   // maju → mulai dari tab pertama
     serverSave();
     renderSteps();
     renderBody();
@@ -566,15 +647,26 @@ var Formulir = (function () {
     var box = el().querySelector('.ov-bottom');
     if (W.finished) { box.innerHTML = '<div class="end"><button class="btn btn-primary" data-close>Tutup</button></div>'; box.querySelector('[data-close]').onclick = function () { close(true); }; return; }
     var right = '';
-    if (W.step > 1) right += '<button class="btn" data-prev>' + icon('arrowL', 16) + '<span class="hide-sm">Sebelumnya</span></button>';
-    right += '<button class="btn" data-save-draft>' + icon('save', 16) + '<span class="hide-sm">Simpan Draf</span></button>';
-    if (W.step === LAST) right += '<button class="btn btn-primary btn-gold" data-final>' + icon('printer', 16) + 'Simpan &amp; Cetak</button>';
-    else right += '<button class="btn btn-primary" data-next><span class="hide-sm">Berikutnya:</span> ' + esc(LK_STEPS[W.step]) + icon('arrowR', 16) + '</button>';
-    box.innerHTML = '<button class="btn btn-ghost" data-exit style="color:var(--danger)">' + icon('logout', 16) + '<span class="hide-sm">Keluar dari Form</span></button><div class="end">' + right + '</div>';
+    var tabs = W.step === 2 || W.step === 3 ? visibleGroups(W.step) : [];
+    var ti = tabs.findIndex(function (g) { return g.key === W.sub[W.step]; });
+    var nextLbl = ti >= 0 && ti < tabs.length - 1 ? tabs[ti + 1].tab : LK_STEPS[W.step];
+    if (W.step > 1 || ti > 0) right += '<button class="btn" data-prev aria-label="Sebelumnya">' + icon('arrowL', 16) + '<span class="hide-sm">Sebelumnya</span></button>';
+    right += '<button class="btn" data-save-draft aria-label="Simpan Draf">' + icon('save', 16) + '<span class="hide-sm">Simpan Draf</span></button>';
+    if (W.step === LAST) right += '<button class="btn btn-primary btn-gold grow-sm" data-final>' + icon('printer', 16) + 'Simpan &amp; Cetak</button>';
+    else right += '<button class="btn btn-primary grow-sm" data-next><span class="hide-sm">Berikutnya:</span> ' + esc(nextLbl) + icon('arrowR', 16) + '</button>';
+    box.innerHTML = '<button class="btn btn-ghost" data-exit style="color:var(--danger)" aria-label="Keluar dari Form">' + icon('logout', 16) + '<span class="hide-sm">Keluar dari Form</span></button><div class="end">' + right + '</div>';
     box.querySelector('[data-exit]').onclick = function () { close(); };
     var b;
-    if ((b = box.querySelector('[data-prev]'))) b.onclick = function () { goStep(W.step - 1); };
-    if ((b = box.querySelector('[data-next]'))) b.onclick = function () { goStep(W.step + 1); };
+    if ((b = box.querySelector('[data-prev]'))) b.onclick = function () {
+      if (ti > 0) return goTab(tabs[ti - 1].key);
+      var pn = W.step - 1;
+      if (pn === 2 || pn === 3) { var pg = visibleGroups(pn); if (pg.length) W.sub[pn] = pg[pg.length - 1].key; }
+      goStep(pn);
+    };
+    if ((b = box.querySelector('[data-next]'))) b.onclick = function () {
+      if (ti >= 0 && ti < tabs.length - 1) return nextTab(tabs, ti);
+      goStep(W.step + 1);
+    };
     if ((b = box.querySelector('[data-save-draft]'))) b.onclick = function () {
       var btn = this;
       UI.busy(btn, async function () {
@@ -591,7 +683,7 @@ var Formulir = (function () {
     var der = derived();
     var se = stepErrors();
     var pkg = lkPackage(der, S.master.rules, S.master.templates, App.fields());
-    var warns = lkWarnings(der, S.master.warnings, wctx());
+    var warns = lkWarnings(der, S.master.warnings, wctx()).filter(function (w) { return !w.hint; });
     var blok = warns.filter(function (w) { return w.tingkat === 'BLOKIR'; });
     var fm = App.fieldMap();
     var f = function (k) { return lkFormat(der[k], fm[k]); };
@@ -665,17 +757,19 @@ var Formulir = (function () {
 
   async function renderSuccess(res) {
     var id = W.id;
+    var desa = !App.isKua();
     renderTop(); renderSteps(); renderMeta(); renderBottom();
-    el().querySelector('.jumpnav').classList.add('hidden');
+    el().querySelector('.ftabs').classList.add('hidden');
     var sc = el().querySelector('.ov-scroll');
     sc.innerHTML = '<div class="ov-inner" style="max-width:760px"><div class="card card-body success-card">' +
       '<div class="success-ico">' + icon('checkCircle', 34) + '</div>' +
       '<h2>' + esc(id) + ' siap dicetak</h2><p class="muted" style="margin:0 0 18px">Cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.</p>' +
       (res.gagal.length ? '<div class="banner warn" style="text-align:left;margin-bottom:16px">' + icon('alert') + '<div class="txt">Surat gagal dibuat: <b>' + esc(res.gagal.join(', ')) + '</b>. Tekan <b>Cetak Paket PDF</b> untuk mengulang.</div></div>' : '') +
+      (desa && !res.gagal.length ? '<div class="kirim-box" data-kirim><div class="kb-h">' + icon('send', 18) + '<b>Pemberitahuan ke KUA</b><span class="spin-s"></span></div><div class="kb-b muted">Menyiapkan paket PDF lengkap &amp; pesan WhatsApp…</div></div>' : '') +
       '<div data-docs style="text-align:left"><div class="skel"></div></div>' +
-      '<div class="row" style="justify-content:center;margin-top:20px"><button class="btn btn-primary btn-gold" data-print style="height:46px">' + icon('printer') + 'Cetak Paket PDF</button>' +
+      '<div class="row succ-act" style="justify-content:center;margin-top:20px"><button class="btn btn-primary btn-gold" data-print style="height:46px">' + icon('printer') + 'Cetak Paket PDF</button>' +
       '<a class="btn" href="#/detail/' + esc(id) + '" style="height:46px">' + icon('eye') + 'Lihat Detail</a>' +
-      (!App.isKua() ? '<button class="btn" data-new style="height:46px">' + icon('plus') + 'Pengajuan Baru</button>' : '') + '</div></div></div>';
+      (desa ? '<button class="btn" data-new style="height:46px">' + icon('plus') + 'Pengajuan Baru</button>' : '') + '</div></div></div>';
     sc.querySelector('[data-print]').onclick = function () { Pengajuan.printPackage(id, this); };
     var nb = sc.querySelector('[data-new]');
     if (nb) nb.onclick = function () { forceClose(true); App.go('#/form/new'); };
@@ -683,12 +777,42 @@ var Formulir = (function () {
     var box = sc.querySelector('[data-docs]');
     if (!box) return;
     if (!r.success) { box.innerHTML = ''; return; }
+    if (desa && !res.gagal.length) autoKirim(id, r, sc);
     var aktif = Pengajuan.sortDocs(r.data.dokumen.filter(function (d) { return d.aktif; }));
     box.innerHTML = '<div class="doclist">' + aktif.map(function (d) {
       return '<div class="docitem"><span class="ic">' + icon('fileCheck', 18) + '</span><div class="nm"><b>' + esc(d.template_kode) + ' — ' + esc(d.template_nama) + (d.untuk ? ' (' + lkUntukLabel(d.untuk) + ')' : '') + '</b><span>Versi ' + esc(d.versi_dokumen) + ' · ' + UI.waktu(d.dibuat_pada) + '</span></div>' +
         '<button class="btn btn-sm" data-dl="' + esc(d.dokumen_id) + '">' + icon('download', 15) + '<span class="hide-sm">Unduh</span></button></div>';
     }).join('') + '</div>';
     UI.$$('[data-dl]', box).forEach(function (b) { b.onclick = function () { Pengajuan.downloadDoc(aktif.find(function (d) { return d.dokumen_id === b.dataset.dl; }), b); }; });
+  }
+
+  /**
+   * Setelah Simpan & Cetak berhasil (desa): paket PDF lengkap diunduh otomatis → diunggah ke Drive
+   * (tautan) → dikirim ke Akad Tracker / LABUKU Desk → WhatsApp KUA dibuka (bukti daftar + tautan PDF).
+   */
+  async function autoKirim(id, st, sc) {
+    var kb = sc.querySelector('[data-kirim]');
+    var set = function (html, ok) { if (!kb || !document.body.contains(kb)) return; kb.classList.toggle('done', !!ok); var sp = kb.querySelector('.spin-s'); if (sp && ok !== undefined) sp.remove(); kb.querySelector('.kb-b').innerHTML = html; };
+    try {
+      var blob = await Pengajuan.buildPackage(id, st);
+      UI.downloadBlob(blob, id + '_paket.pdf');
+      set('Paket PDF terunduh. Mengirim ke KUA…');
+      var r = await Pengajuan.uploadPaket(id, blob);
+      if (!r.success) return set('<span style="color:var(--danger)">' + esc(r.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>', false), bindRetry();
+      var opened = Pengajuan.openWa(r.data.wa);
+      set((opened ? '<b>WhatsApp KUA sudah dibuka</b> — tinggal tekan Kirim. ' : 'Tekan tombol hijau untuk mengirim pemberitahuan ke KUA. ') +
+        (r.data.wa && !r.data.wa.nomor ? '<br><span style="color:var(--warn-text)">Nomor WhatsApp KUA belum diatur Admin — pilih kontak KUA manual.</span>' : '') +
+        '<div class="row mt-s" style="gap:8px;flex-wrap:wrap"><a class="btn btn-wa" href="' + esc(Pengajuan.waUrl(r.data.wa)) + '" target="_blank" rel="noopener">' + icon('chat') + 'Kirim WhatsApp ke KUA</a>' +
+        '<a class="btn btn-sm" href="' + esc(r.data.paket_url) + '" target="_blank" rel="noopener">' + icon('file', 15) + 'Tautan PDF</a></div>' +
+        '<div class="mt-s">' + Pengajuan.integrasiHtml(r.data.integrasi) + '</div>', true);
+    } catch (e) {
+      set('<span style="color:var(--danger)">' + esc(e.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>', false);
+      bindRetry();
+    }
+    function bindRetry() {
+      var b = kb && kb.querySelector('[data-retry]');
+      if (b) b.onclick = function () { Pengajuan.kirimKua(id, b); };
+    }
   }
 
   return { open: open, close: close, forceClose: forceClose, isOpen: isOpen, isDirty: isDirty };

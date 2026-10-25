@@ -14,8 +14,7 @@ var Pengajuan = (function () {
   function applyFilter(list) {
     var q = F.q.toLowerCase(), nama = F.nama.toLowerCase();
     return list.filter(function (p) {
-      if (!F.status) { if (p.status === 'DIBATALKAN') return false; }
-      else if (p.status !== F.status) return false;
+      if (F.status && p.status !== F.status) return false;   // default: semua status, yang batal tetap tampil (status Batal)
       if (F.jenis && p.jenis !== F.jenis) return false;
       if (F.desa && p.desa_id !== F.desa) return false;
       if (F.id && p.pengajuan_id.toLowerCase().indexOf(F.id.toLowerCase()) < 0) return false;
@@ -28,8 +27,8 @@ var Pengajuan = (function () {
     });
   }
 
-  var STATUS_OPTS = [{ v: 'DRAF', l: 'Draf (belum lengkap)' }, { v: 'SELESAI', l: 'Siap Cetak' }, { v: 'DIBATALKAN', l: 'Dibatalkan' }];
-  var TITLES = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Dibatalkan' };
+  var STATUS_OPTS = [{ v: 'DRAF', l: 'Draf (belum lengkap)' }, { v: 'SELESAI', l: 'Siap Cetak' }, { v: 'DIBATALKAN', l: 'Batal' }];
+  var TITLES = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Batal' };
 
   /* ---------------- DAFTAR ---------------- */
   function renderList(main, params, soft) {
@@ -42,12 +41,12 @@ var Pengajuan = (function () {
       lastParamsKey = key;
     }
     var kua = App.isKua();
-    main.innerHTML = App.pageHead('Beranda / Pengajuan Nikah', F.status === 'DIBATALKAN' ? 'PENGAJUAN DIBATALKAN' : 'DAFTAR PENGAJUAN', F.status ? TITLES[F.status] : 'Pengajuan Aktif') +
+    main.innerHTML = App.pageHead('Beranda / Daftar Pengajuan', 'DAFTAR PENGAJUAN', F.status ? TITLES[F.status] : 'Semua Status') +
       '<div class="stack"><div class="card filter-card' + (collapsed ? ' collapsed' : '') + '" id="lf"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter Pencarian</span><span class="sep"></span>' +
       '<span class="caption">Data Pengajuan</span><button class="toggle" data-toggle>' + (collapsed ? '▾ Tampilkan' : '▴ Sembunyikan') + '</button></div><div class="fbody"><div class="filter-grid">' +
       fi('id', 'No. Pengajuan', 'cth. LK-2026-00125') + fi('nik', 'NIK Catin', '16 digit NIK', 'numeric') + fi('nama', 'Nama Catin', 'min. 3 karakter') +
       '<div class="field"><label>Jenis</label><select class="select" data-f="jenis">' + UI.options([{ v: 'NIKAH_DI_KUA', l: 'Nikah di Wilayah' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi (Luar Wilayah)' }], F.jenis, 'Semua') + '</select></div>' +
-      '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(STATUS_OPTS, F.status, 'Semua Aktif') + '</select></div>' +
+      '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(STATUS_OPTS, F.status, 'Semua Status') + '</select></div>' +
       (kua ? '<div class="field"><label>Desa</label><select class="select" data-f="desa">' + UI.options(S.master.desa.map(function (d) { return { v: d.desa_id, l: d.nama_desa }; }), F.desa, 'Semua Desa') + '</select></div>' : '') +
       '<div class="field"><label>Tgl Akad Dari</label><input class="input" type="date" data-f="dari" value="' + esc(F.dari) + '"></div>' +
       '<div class="field"><label>Tgl Akad Sampai</label><input class="input" type="date" data-f="sampai" value="' + esc(F.sampai) + '"></div>' +
@@ -110,10 +109,11 @@ var Pengajuan = (function () {
     var items = [{ label: 'Lihat Detail', icon: 'eye', onClick: function () { App.go('#/detail/' + p.pengajuan_id); } }];
     items.push({ label: kua ? 'Edit Data (KUA)' : 'Edit', icon: 'pencil', disabled: st === 'DIBATALKAN', title: st === 'DIBATALKAN' ? 'Aktifkan kembali dulu' : '', onClick: function () { App.go('#/form/' + p.pengajuan_id); } });
     items.push({ label: 'Cetak Paket PDF', icon: 'printer', disabled: !(st === 'SELESAI' || st === 'DIBATALKAN'), title: st === 'DRAF' ? 'Lengkapi data lalu tekan Simpan & Cetak di langkah Validasi' : '', onClick: function () { printPackage(p.pengajuan_id); } });
+    if (!kua) items.push({ label: 'Kirim ke KUA (WhatsApp)', icon: 'send', disabled: st !== 'SELESAI', title: st === 'DRAF' ? 'Lengkapi data lalu Simpan & Cetak' : '', onClick: function () { kirimKua(p.pengajuan_id); } });
     if (kua) items.push({ label: 'Tautkan Pasangan', icon: 'link', disabled: st === 'DIBATALKAN' || p.peran_catin === 'SUAMI_ISTRI', onClick: function () { linkPartner(p); } });
     items.push('-');
     if (st === 'DIBATALKAN') items.push({ label: 'Aktifkan Kembali', icon: 'rotate', onClick: function () { reactivate(p); } });
-    else items.push({ label: 'Batalkan', icon: 'xCircle', danger: true, onClick: function () { cancel(p); } });
+    else items.push({ label: 'Batalkan (status: Batal)', icon: 'xCircle', danger: true, onClick: function () { cancel(p); } });
     UI.menu(anchor, 'Aksi Pengajuan', items);
   }
 
@@ -235,7 +235,19 @@ var Pengajuan = (function () {
     return list.slice().sort(function (a, b) { return tplOrder(a.template_kode) - tplOrder(b.template_kode) || (ord[a.untuk || ''] - ord[b.untuk || '']) || Number(b.versi_dokumen) - Number(a.versi_dokumen); });
   }
 
-  async function printPackage(id, btn) {
+  /** Gabungkan semua surat aktif → Blob PDF. Melempar Error bila gagal. */
+  async function buildPackage(id, st) {
+    st = st || await API.call('docsStatus', { id: id });
+    if (!st.success) throw new Error(st.message);
+    var aktif = sortDocs(st.data.dokumen.filter(function (d) { return d.aktif; }));
+    if (!aktif.length) throw new Error('Belum ada dokumen untuk dicetak.');
+    var pdfs = await Promise.all(aktif.map(function (d) { return API.call('getDocPdf', { dokumen_id: d.dokumen_id }); }));
+    var bad = pdfs.find(function (r) { return !r.success; });
+    if (bad) throw new Error(bad.message);
+    return UI.mergePdf(pdfs.map(function (r) { return { base64: r.data.base64 }; }), pdfs[0].data.dibatalkan ? 'DIBATALKAN' : '');
+  }
+
+  async function printPackage(id, btn, regenerated) {
     var win = UI.preOpen();
     var work = async function () {
       var st = await API.call('docsStatus', { id: id });
@@ -248,17 +260,80 @@ var Pengajuan = (function () {
         if (!ok) return;
         await generateDocs(id, st.data.dokumen_perlu, 'Melengkapi dokumen ' + id);
         if (window.Detail && Detail.currentId() === id) Detail.reload();
-        return printPackage(id);
+        return printPackage(id, null, true);
       }
-      var aktif = sortDocs(st.data.dokumen.filter(function (d) { return d.aktif; }));
-      if (!aktif.length) { if (win) win.close(); return UI.toast('Belum ada dokumen untuk dicetak.', 'warning'); }
-      var pdfs = await Promise.all(aktif.map(function (d) { return API.call('getDocPdf', { dokumen_id: d.dokumen_id }); }));
-      var bad = pdfs.find(function (r) { return !r.success; });
-      if (bad) { if (win) win.close(); return UI.toast(bad.message, 'error'); }
-      var blob = await UI.mergePdf(pdfs.map(function (r) { return { base64: r.data.base64 }; }), pdfs[0].data.dibatalkan ? 'DIBATALKAN' : '');
+      var blob = await buildPackage(id, st);
       UI.openBlob(blob, win, id + '_paket.pdf');
+      // Surat baru dibuat ulang (data berubah) → perbarui tautan PDF & data di KUA / Akad Tracker / LABUKU Desk di latar belakang
+      if (regenerated && p.status === 'SELESAI') uploadPaket(id, blob).then(function (r) { if (r.success) UI.toast('Berkas di KUA ikut diperbarui.', 'info'); });
     };
     try { await (btn ? UI.busy(btn, work) : work()); } catch (e) { if (win) win.close(); UI.toast(e.message, 'error'); }
+  }
+
+  /* ---------------- KIRIM KE KUA (WhatsApp + Akad Tracker + LABUKU Desk) ---------------- */
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(String(fr.result).split(',')[1] || ''); };
+      fr.onerror = function () { reject(new Error('Gagal membaca berkas PDF.')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  async function uploadPaket(id, blob) {
+    var b64 = await blobToBase64(blob);
+    return API.call('savePaket', { id: id, base64: b64 }, { timeout: 120000 });
+  }
+  function waUrl(wa) { return 'https://wa.me/' + (wa && wa.nomor ? wa.nomor : '') + '?text=' + encodeURIComponent(wa ? wa.text : ''); }
+  /** Buka WhatsApp; false bila diblokir browser (tampilkan tombol). */
+  function openWa(wa) {
+    var w = null;
+    // Tanpa fitur "noopener": dengan noopener window.open selalu mengembalikan null (tak bisa tahu diblokir/tidak)
+    try { w = window.open(waUrl(wa), '_blank'); if (w) w.opener = null; } catch (e) { w = null; }
+    return !!w;
+  }
+  /** Ringkasan hasil kiriman ke aplikasi tujuan. */
+  function integrasiHtml(list) {
+    if (!list || !list.length) return '';
+    return '<div class="doclist">' + list.map(function (h) {
+      var ok = h.status === 'TERKIRIM', none = h.status === 'BELUM_DIATUR';
+      return '<div class="docitem"><span class="ic" style="' + (ok ? '' : none ? 'color:var(--muted)' : 'color:var(--danger)') + '">' + icon(ok ? 'checkCircle' : none ? 'plug' : 'xCircle', 18) + '</span><div class="nm"><b>' + esc(h.nama) + ' — ' + esc(h.layanan) + '</b><span>' +
+        (ok ? 'Terkirim' : none ? 'Belum disambungkan (Admin KUA: Data Master → Integrasi)' : 'Gagal: ' + esc(h.pesan)) + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+  /** Dari menu aksi / detail: gabung PDF → unggah → kirim → buka WhatsApp KUA. */
+  async function kirimKua(id, btn) {
+    var p = find(id) || {};
+    if (p.status !== 'SELESAI') return UI.toast('Hanya pengajuan Siap Cetak yang bisa dikirim ke KUA.', 'warning');
+    var work = async function () {
+      var st = await API.call('docsStatus', { id: id });
+      if (!st.success) return UI.toast(st.message, 'error');
+      if (st.data.dokumen_perlu.length) {
+        await generateDocs(id, st.data.dokumen_perlu, 'Melengkapi dokumen ' + id);
+        st = await API.call('docsStatus', { id: id });
+      }
+      var blob = await buildPackage(id, st);
+      var r = await uploadPaket(id, blob);
+      if (!r.success) return UI.toast(r.message, 'error');
+      kirimModal(id, r.data);
+    };
+    try { await (btn ? UI.busy(btn, work) : work()); } catch (e) { UI.toast(e.message, 'error'); }
+  }
+  function kirimModal(id, res) {
+    var opened = openWa(res.wa);
+    var m = UI.modal({
+      title: 'Kirim ke KUA', icon: 'send',
+      body: '<p style="margin-top:0">' + (opened ? 'WhatsApp sudah dibuka — tinggal tekan <b>Kirim</b>.' : 'Tekan tombol hijau untuk membuka WhatsApp, lalu tekan <b>Kirim</b>.') + ' Pesan berisi bukti daftar <b class="mono">' + esc(id) + '</b> dan tautan PDF lengkap.</p>' +
+        (res.wa && !res.wa.nomor ? '<div class="banner warn">' + icon('alert') + '<div class="txt">Nomor WhatsApp KUA belum diatur — pilih kontak KUA secara manual. (Admin KUA: Data Master → Integrasi)</div></div>' : '') +
+        (res.catatan_link ? '<div class="banner warn mt-s">' + icon('alert') + '<div class="txt">' + esc(res.catatan_link) + '</div></div>' : '') +
+        integrasiHtml(res.integrasi) +
+        '<div class="row mt-s" style="gap:8px;flex-wrap:wrap"><a class="btn btn-wa" href="' + esc(waUrl(res.wa)) + '" target="_blank" rel="noopener">' + icon('chat') + 'Buka WhatsApp KUA</a>' +
+        '<a class="btn" href="' + esc(res.paket_url) + '" target="_blank" rel="noopener">' + icon('file') + 'Buka PDF</a>' +
+        '<button class="btn" data-copy>' + icon('copy') + 'Salin Pesan</button></div>',
+      foot: '<button class="btn btn-primary" data-close>Selesai</button>'
+    });
+    m.root.querySelector('[data-copy]').onclick = function () {
+      try { navigator.clipboard.writeText(res.wa.text).then(function () { UI.toast('Pesan disalin.'); }); } catch (e) { UI.toast('Salin tidak didukung perangkat ini.', 'warning'); }
+    };
   }
 
   async function downloadDoc(d, btn) {
@@ -298,6 +373,7 @@ var Pengajuan = (function () {
   return {
     renderList: renderList, actionMenu: actionMenu, cancel: cancel, reactivate: reactivate,
     linkPartner: linkPartner, generateDocs: generateDocs, printPackage: printPackage, sortDocs: sortDocs, peranLabel: peranLabel,
+    buildPackage: buildPackage, uploadPaket: uploadPaket, openWa: openWa, waUrl: waUrl, integrasiHtml: integrasiHtml, kirimKua: kirimKua, kirimModal: kirimModal,
     downloadDoc: downloadDoc, jenisLabel: jenisLabel, find: find, exportExcel: exportExcel, tplOrder: tplOrder
   };
 })();
@@ -352,6 +428,7 @@ var Detail = (function () {
 
     var actions = '';
     if (st === 'SELESAI' || st === 'DIBATALKAN') actions += '<button class="btn btn-primary btn-gold" data-print>' + icon('printer') + '<span>Cetak Paket PDF</span></button>';
+    if (st === 'SELESAI' && !kua) actions += '<button class="btn btn-wa" data-kirim>' + icon('send') + '<span class="hide-sm">Kirim ke KUA</span></button>';
     if (st !== 'DIBATALKAN') actions += '<a class="btn' + (st === 'DRAF' ? ' btn-primary' : '') + '" href="#/form/' + esc(p.pengajuan_id) + '">' + icon('pencil') + '<span>' + (st === 'DRAF' ? 'Lanjutkan Mengisi' : kua ? 'Edit Data' : 'Edit') + '</span></a>';
     actions += '<button class="btn" data-more data-menu-anchor>' + icon('menu') + '<span class="hide-sm">Aksi Lain</span></button>';
 
@@ -359,7 +436,7 @@ var Detail = (function () {
     var ed = lastAudit('EDIT_KUA');
     if (ed && st !== 'DIBATALKAN') banners += '<div class="banner info">' + icon('printer') + '<div class="txt"><b>Data diubah KUA ' + UI.waktu(ed.waktu) + '.</b> Bila berkas sudah dicetak, cetak ulang versi terbaru dan minta tanda tangan ulang Kepala Desa.</div></div>';
     if (st === 'DRAF') banners += '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>Data belum lengkap.</b> Lanjutkan mengisi sampai langkah <b>Validasi</b>, lalu tekan <b>Simpan &amp; Cetak</b>.</div></div>';
-    if (st === 'DIBATALKAN') banners += '<div class="banner danger">' + icon('xCircle') + '<div class="txt"><b>Dibatalkan:</b> ' + esc(p.alasan_batal || '-') + '. Data tetap tersimpan.</div><button class="btn btn-sm" data-reactivate>' + icon('rotate', 15) + 'Aktifkan Kembali</button></div>';
+    if (st === 'DIBATALKAN') banners += '<div class="banner danger">' + icon('xCircle') + '<div class="txt"><b>Status Batal:</b> ' + esc(p.alasan_batal || '-') + '. Data tetap tersimpan.</div><button class="btn btn-sm" data-reactivate>' + icon('rotate', 15) + 'Aktifkan Kembali</button></div>';
     if (st === 'SELESAI' && data.dokumen_perlu && data.dokumen_perlu.length) banners += '<div class="banner neutral">' + icon('fileCheck') + '<div class="txt">Surat akan dibuat/diperbarui otomatis saat dicetak: <b>' + esc(data.dokumen_perlu.join(', ')) + '</b>.</div></div>';
 
     o.innerHTML = '<div class="ov-top"><div class="ttl"><b>Detail Pengajuan</b><span><span class="mono" style="color:var(--text);font-weight:600">' + esc(p.pengajuan_id) + '</span> · Desa ' + esc(App.desaName(p.desa_id)) + ' · ' + esc(Pengajuan.jenisLabel(p.jenis)) + '</span></div>' +
@@ -424,7 +501,7 @@ var Detail = (function () {
 
   var AKSI = {
     BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak (siap cetak)', EDIT_KUA: 'Diedit KUA', EDIT_DESA: 'Diedit desa',
-    BATALKAN: 'Dibatalkan', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
+    BATALKAN: 'Dibatalkan (status Batal)', KIRIM_KUA: 'Dikirim ke KUA (WhatsApp / Akad Tracker / LABUKU Desk)', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
     SUDAH_CETAK_ULANG: 'Ditandai sudah dicetak ulang', BUAT_PASANGAN: 'Dibuat dari pengajuan pasangan', TAUTKAN_PASANGAN: 'Ditautkan dengan pasangan'
   };
   function riwayatView() {
@@ -459,6 +536,8 @@ var Detail = (function () {
     });
     var pr = o.querySelector('[data-print]');
     if (pr) pr.onclick = function () { Pengajuan.printPackage(p.pengajuan_id, pr); };
+    var kr = o.querySelector('[data-kirim]');
+    if (kr) kr.onclick = function () { Pengajuan.kirimKua(p.pengajuan_id, kr); };
     var ra = o.querySelector('[data-reactivate]');
     if (ra) ra.onclick = function () { Pengajuan.reactivate(p); };
     o.querySelector('[data-more]').onclick = function (e) { Pengajuan.actionMenu(p, e.currentTarget); };

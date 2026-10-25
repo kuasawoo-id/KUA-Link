@@ -215,10 +215,10 @@ var App = (function () {
     var c = counts();
     // type=search + autocomplete=off: cegah browser mengisi username tersimpan ke kolom ini
     var h = '<div class="search">' + icon('search', 16) + '<input id="navSearch" type="search" name="kl-menu-search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Cari menu / no. pengajuan…"></div>';
+    // Menu datar (tanpa sub-menu): Dashboard · Pengajuan Nikah · Daftar Pengajuan · Profil Desa
     h += navLink('#/dashboard', 'grid', 'Dashboard');
-    var sub = (isKua() ? '' : navLink('#/form/new', '', 'Pengajuan Baru')) + navLink('#/pengajuan', '', 'Daftar Pengajuan', c.AKTIF) +
-      navLink('#/pengajuan?status=DIBATALKAN', '', 'Dibatalkan', c.DIBATALKAN || '');
-    h += navGroup('pengajuan', 'file', 'Pengajuan Nikah', sub);
+    if (!isKua()) h += navLink('#/form/new', 'plus', 'Pengajuan Nikah');
+    h += navLink('#/pengajuan', 'file', 'Daftar Pengajuan', c.ALL || '');
     if (!isKua()) {
       h += navLink('#/profil', 'building', 'Profil Desa');
     } else {
@@ -226,7 +226,7 @@ var App = (function () {
         h += navGroup('master', 'database', 'Data Master',
           navLink('#/master/akun', '', 'Akun Desa') + navLink('#/master/field', '', 'Field Surat') +
           navLink('#/master/template', '', 'Template Surat') + navLink('#/master/aturan', '', 'Aturan Paket Surat') +
-          navLink('#/master/libur', '', 'Hari Libur'));
+          navLink('#/master/libur', '', 'Hari Libur') + navLink('#/master/integrasi', '', 'Integrasi & WhatsApp'));
       }
       h += navLink('#/riwayat', 'history', 'Riwayat & Arsip');
       h += navLink('#/profil', 'user', 'Profil Akun');
@@ -249,8 +249,18 @@ var App = (function () {
       '<div class="right"><button class="icon-btn" id="bellBtn" aria-label="Notifikasi">' + icon('bell', 20) + '<span class="count' + (S.notif.unread ? '' : ' hidden') + '" id="bellCount">' + S.notif.unread + '</span></button>' +
       '<button class="account" id="accBtn" data-menu-anchor><span class="avatar">' + esc(UI.initials(person)) + '</span><span class="who"><b>' + esc(person) + '</b><span>' + esc(roleLabel()) + '</span></span>' + icon('chevD', 16) + '</button></div></header>' +
       '<div class="body"><nav class="sidebar" id="sidebar">' + sidebarHtml() + '</nav><div class="sidebar-backdrop" id="sbBack"></div>' +
-      '<main class="main" id="main"></main></div></div><div id="overlayRoot"></div>';
+      '<main class="main" id="main"></main></div>' + bottomNavHtml() + '</div><div id="overlayRoot"></div>';
     bindShell();
+  }
+
+  /** Navigasi bawah (HP): 4 menu utama, selalu terjangkau ibu jari. */
+  function bottomNavHtml() {
+    var items = isKua()
+      ? [['#/dashboard', 'grid', 'Dashboard'], ['#/pengajuan', 'file', 'Pengajuan'], [isAdmin() ? '#/master/akun' : '#/riwayat', isAdmin() ? 'database' : 'history', isAdmin() ? 'Master' : 'Riwayat'], ['#/profil', 'user', 'Profil']]
+      : [['#/dashboard', 'grid', 'Dashboard'], ['#/form/new', 'plus', 'Pengajuan'], ['#/pengajuan', 'file', 'Daftar'], ['#/profil', 'building', 'Profil Desa']];
+    return '<nav class="bnav" id="bnav">' + items.map(function (x) {
+      return '<a href="' + x[0] + '" data-bnav="' + x[0] + '"' + (x[0] === '#/form/new' ? ' class="primary"' : '') + '>' + icon(x[1], 22) + '<span>' + esc(x[2]) + '</span></a>';
+    }).join('') + '</nav>';
   }
 
   function refreshSidebar() {
@@ -322,6 +332,11 @@ var App = (function () {
     });
     if (!best) UI.$$('#sidebar [data-nav]').forEach(function (a) { if (!best && h.split('?')[0] === a.dataset.nav) best = a; });
     if (best) best.classList.add('active');
+    var hb = h.split('?')[0];
+    UI.$$('#bnav [data-bnav]').forEach(function (a) {
+      var n = a.dataset.bnav;
+      a.classList.toggle('active', hb === n || (n === '#/master/akun' && hb.indexOf('#/master/') === 0));
+    });
   }
 
   /* ---------------- ROUTER ---------------- */
@@ -339,7 +354,7 @@ var App = (function () {
       dashboard: Dashboard.render, laporan: Dashboard.render, pengajuan: Pengajuan.renderList, profil: renderProfil
     };
     if (isKua()) p.riwayat = Laporan.riwayat;
-    if (isAdmin()) { p['master/akun'] = Master.akun; p['master/field'] = Master.field; p['master/template'] = Master.template; p['master/aturan'] = Master.aturan; p['master/libur'] = Master.libur; }
+    if (isAdmin()) { p['master/akun'] = Master.akun; p['master/field'] = Master.field; p['master/template'] = Master.template; p['master/aturan'] = Master.aturan; p['master/libur'] = Master.libur; p['master/integrasi'] = Master.integrasi; }
     return p;
   };
 
@@ -533,10 +548,12 @@ var App = (function () {
       title: 'Panduan Singkat', icon: 'help', size: 'wide',
       body: desa ?
         '<ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:8px">' +
-        '<li><b>Pengajuan Baru</b> → isi 4 langkah: <b>Jadwal Akad</b>, <b>Data Calon Suami</b>, <b>Data Calon Istri</b>, <b>Validasi</b>. Isian tersimpan otomatis.</li>' +
+        '<li><b>Pengajuan Nikah</b> → isi 4 langkah: <b>Jadwal Akad</b>, <b>Data Calon Suami</b>, <b>Data Calon Istri</b>, <b>Validasi</b>. Data catin, ayah, ibu, dan wali ada di tab terpisah. Isian tersimpan otomatis.</li>' +
         '<li>Bila calon suami &amp; calon istri sama-sama warga desa ini, pilih <b>Pengajuan Untuk: Calon Suami &amp; Calon Istri</b> — cukup satu pengajuan.</li>' +
         '<li>Isian bertanda <span style="color:var(--danger)">*</span> wajib diisi; yang belum terisi berubah merah dan langkah berikutnya tidak bisa dibuka.</li>' +
-        '<li>Di langkah <b>Validasi</b> tekan <b>Simpan &amp; Cetak</b> → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.</li>' +
+        '<li>Di langkah <b>Validasi</b> tekan <b>Simpan &amp; Cetak</b> → paket PDF terunduh &amp; <b>WhatsApp KUA terbuka</b> → tekan Kirim → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.</li>' +
+        '<li>Calon istri janda: tanggal surat &amp; akad harus setelah batas <b>masa iddah</b> (dihitung otomatis dari tanggal akta).</li>' +
+        '<li>Pembatalan: <b>Daftar Pengajuan</b> → ☰ → <b>Batalkan</b>; status menjadi <b>Batal</b> dan tetap tampil di daftar.</li>' +
         '<li>Ada yang salah? Data <b>tetap bisa diedit</b> kapan saja, lalu cetak ulang &amp; tanda tangan ulang. Bila KUA yang mengubah, Anda menerima notifikasi.</li>' +
         '<li>Nama Kepala Desa &amp; nomor surat terakhir tersimpan otomatis untuk pengajuan berikutnya.</li></ol>' :
         '<ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:8px">' +
@@ -545,6 +562,7 @@ var App = (function () {
         '<li><b>Template Surat</b>: buat surat di Google Docs dengan penanda <span class="code-chip">{{field_key}}</span> di folder 01_Template_Sumber, lalu daftarkan.</li>' +
         '<li><b>Aturan Paket Surat</b>: tentukan surat untuk setiap kombinasi <i>Jenis Pengajuan × Pengajuan Untuk</i> (lihat Peta Paket Surat).</li>' +
         '<li><b>Hari Libur</b>: tanggal yang disilang di kalender akad Kantor KUA. Tambahkan libur tahun berikutnya setelah SKB terbit.</li>' +
+        '<li><b>Integrasi &amp; WhatsApp</b>: nomor WhatsApp KUA, sambungan ke Akad Tracker &amp; LABUKU Desk.</li>' +
         '<li>Template bawaan adalah <b>CONTOH</b> — wajib diganti format resmi yang berlaku.</li></ol>'
     });
   }
