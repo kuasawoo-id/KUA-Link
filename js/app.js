@@ -159,11 +159,13 @@ var App = (function () {
 
   /* ---------------- GANTI PASSWORD ---------------- */
   function pwForm() {
-    return '<div class="stack" style="gap:14px">' +
+    // Kolom username tersembunyi: agar pengelola password browser tidak mengisi kolom lain (mis. pencarian menu) dengan username
+    return '<form class="stack" style="gap:14px" autocomplete="on" onsubmit="return false">' +
+      '<input type="text" name="username" autocomplete="username" value="' + esc(S.user ? S.user.username : '') + '" hidden readonly tabindex="-1" aria-hidden="true">' +
       '<div class="field"><label>Password Lama / Awal</label><input class="input" type="password" data-pw="lama" autocomplete="current-password"></div>' +
       '<div class="field"><label>Password Baru</label><input class="input" type="password" data-pw="baru" autocomplete="new-password"><div class="help">Minimal 8 karakter, berisi huruf dan angka.</div></div>' +
       '<div class="field"><label>Ulangi Password Baru</label><input class="input" type="password" data-pw="ulang" autocomplete="new-password"></div>' +
-      '<div class="msg hidden" data-pwmsg style="color:var(--danger);font-size:13px"></div></div>';
+      '<div class="msg hidden" data-pwmsg style="color:var(--danger);font-size:13px"></div></form>';
   }
   async function submitPw(root, btn) {
     var g = function (k) { return root.querySelector('[data-pw="' + k + '"]').value; };
@@ -194,8 +196,8 @@ var App = (function () {
 
   /* ---------------- KERANGKA ---------------- */
   function counts() {
-    var c = { DRAF: 0, TERKUNCI: 0, DIKEMBALIKAN: 0, DIBATALKAN: 0, CETAK: 0, ALL: S.list.length };
-    S.list.forEach(function (p) { c[p.status] = (c[p.status] || 0) + 1; if (p.status === 'TERKUNCI' && lkBool(p.perlu_cetak_ulang)) c.CETAK++; });
+    var c = { DRAF: 0, SELESAI: 0, DIBATALKAN: 0, AKTIF: 0, ALL: S.list.length };
+    S.list.forEach(function (p) { c[p.status] = (c[p.status] || 0) + 1; if (p.status !== 'DIBATALKAN') c.AKTIF++; });
     return c;
   }
 
@@ -211,35 +213,27 @@ var App = (function () {
 
   function sidebarHtml() {
     var c = counts();
-    var h = '<div class="search">' + icon('search', 16) + '<input id="navSearch" placeholder="Cari menu / no. pengajuan…"></div>';
+    // type=search + autocomplete=off: cegah browser mengisi username tersimpan ke kolom ini
+    var h = '<div class="search">' + icon('search', 16) + '<input id="navSearch" type="search" name="kl-menu-search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Cari menu / no. pengajuan…"></div>';
     h += navLink('#/dashboard', 'grid', 'Dashboard');
+    var sub = (isKua() ? '' : navLink('#/form/new', '', 'Pengajuan Baru')) + navLink('#/pengajuan', '', 'Daftar Pengajuan', c.AKTIF) +
+      navLink('#/pengajuan?status=DIBATALKAN', '', 'Dibatalkan', c.DIBATALKAN || '');
+    h += navGroup('pengajuan', 'file', 'Pengajuan Nikah', sub);
     if (!isKua()) {
-      h += navGroup('pengajuan', 'file', 'Pengajuan Nikah',
-        navLink('#/form/new', '', 'Pengajuan Baru') + navLink('#/pengajuan', '', 'Daftar Pengajuan', c.ALL) +
-        navLink('#/pengajuan?status=DIKEMBALIKAN', '', 'Dikembalikan', c.DIKEMBALIKAN || '', true) +
-        navLink('#/pengajuan?status=CETAK', '', 'Perlu Cetak Ulang', c.CETAK || '', true) +
-        navLink('#/pengajuan?status=DIBATALKAN', '', 'Dibatalkan', c.DIBATALKAN || ''));
-      h += navLink('#/laporan', 'chart', 'Laporan Rekapitulasi');
       h += navLink('#/profil', 'building', 'Profil Desa');
     } else {
-      h += navGroup('pengajuan', 'file', 'Pengajuan Nikah',
-        navLink('#/pengajuan', '', 'Semua Pengajuan', c.ALL) + navLink('#/pengajuan?status=TERKUNCI', '', 'Terkunci', c.TERKUNCI || '') +
-        navLink('#/pengajuan?status=DIKEMBALIKAN', '', 'Dikembalikan', c.DIKEMBALIKAN || '') +
-        navLink('#/pengajuan?status=CETAK', '', 'Perlu Cetak Ulang', c.CETAK || '') +
-        navLink('#/pengajuan?status=DRAF', '', 'Draf Desa', c.DRAF || '') +
-        navLink('#/pengajuan?status=DIBATALKAN', '', 'Dibatalkan', c.DIBATALKAN || ''));
       if (isAdmin()) {
         h += navGroup('master', 'database', 'Data Master',
           navLink('#/master/akun', '', 'Akun Desa') + navLink('#/master/field', '', 'Field Surat') +
-          navLink('#/master/template', '', 'Template Surat') + navLink('#/master/aturan', '', 'Aturan Paket Surat'));
+          navLink('#/master/template', '', 'Template Surat') + navLink('#/master/aturan', '', 'Aturan Paket Surat') +
+          navLink('#/master/libur', '', 'Hari Libur'));
       }
-      h += navLink('#/laporan', 'chart', 'Laporan Rekapitulasi');
       h += navLink('#/riwayat', 'history', 'Riwayat & Arsip');
       h += navLink('#/profil', 'user', 'Profil Akun');
     }
     h += '<div class="spacer"></div><div class="bottom">' +
       '<button class="nav-item hidden" data-pwa-install>' + icon('download', 19) + '<span class="lbl">Pasang Aplikasi</span></button>' +
-      '<button class="nav-item" data-act="panduan">' + icon('help', 19) + '<span class="lbl">Panduan Teknis</span></button>' +
+      '<button class="nav-item" data-act="panduan">' + icon('help', 19) + '<span class="lbl">Panduan Singkat</span></button>' +
       '<button class="nav-item logout" data-act="logout">' + icon('logout', 19) + '<span class="lbl">Keluar</span></button></div>';
     return h;
   }
@@ -306,7 +300,12 @@ var App = (function () {
     sb.querySelector('[data-act="panduan"]').onclick = panduan;
     if (window.PWA) PWA.bind(sb);
     var inp = document.getElementById('navSearch');
-    inp.addEventListener('input', function () { filterNav(inp.value); });
+    inp.value = '';
+    inp.addEventListener('input', function (e) {
+      // Isian otomatis browser (bukan ketikan) diabaikan agar menu tidak hilang
+      if (e.isTrusted === false || (e.inputType === undefined && !e.data && inp.value && document.activeElement !== inp)) { inp.value = ''; filterNav(''); return; }
+      filterNav(inp.value);
+    });
     inp.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && inp.value.trim()) { go('#/pengajuan?q=' + encodeURIComponent(inp.value.trim())); inp.value = ''; filterNav(''); closeSidebar(); }
     });
@@ -314,7 +313,7 @@ var App = (function () {
 
   function markActiveNav() {
     var h = location.hash || '#/dashboard';
-    if (/^#\/(form|detail|koreksi)\//.test(h)) h = S.baseHash;
+    if (/^#\/(form|detail)\//.test(h)) h = S.baseHash;
     var best = null;
     UI.$$('#sidebar [data-nav]').forEach(function (a) {
       a.classList.remove('active');
@@ -337,10 +336,10 @@ var App = (function () {
 
   var PAGES = function () {
     var p = {
-      dashboard: Dashboard.render, pengajuan: Pengajuan.renderList, laporan: Laporan.render, profil: renderProfil
+      dashboard: Dashboard.render, laporan: Dashboard.render, pengajuan: Pengajuan.renderList, profil: renderProfil
     };
     if (isKua()) p.riwayat = Laporan.riwayat;
-    if (isAdmin()) { p['master/akun'] = Master.akun; p['master/field'] = Master.field; p['master/template'] = Master.template; p['master/aturan'] = Master.aturan; }
+    if (isAdmin()) { p['master/akun'] = Master.akun; p['master/field'] = Master.field; p['master/template'] = Master.template; p['master/aturan'] = Master.aturan; p['master/libur'] = Master.libur; }
     return p;
   };
 
@@ -352,9 +351,8 @@ var App = (function () {
     var ov = /^(form|detail|koreksi)\/(.+)$/.exec(r.path);
     if (ov) {
       if (!currentPage) renderPage(PAGES().dashboard, { path: 'dashboard', params: {} });
-      if (ov[1] === 'form') Formulir.open(ov[2] === 'new' ? null : ov[2], 'edit');
-      else if (ov[1] === 'koreksi') Formulir.open(ov[2], 'koreksi');
-      else Detail.open(ov[2]);
+      if (ov[1] === 'detail') Detail.open(ov[2]);
+      else Formulir.open(ov[2] === 'new' ? null : ov[2]);
       markActiveNav();
       return;
     }
@@ -470,18 +468,57 @@ var App = (function () {
     var d = S.desa;
     main.innerHTML = pageHead('Beranda / Profil', isKua() ? 'Profil Akun' : 'Profil Desa') +
       '<div class="split"><div class="stack">' +
-      (d ? '<div class="card topline"><div class="card-head"><h2>Data Desa</h2><span class="sub">Perubahan data desa melalui Admin KUA</span></div><div class="card-body"><div class="kv">' +
-        kv('Nama Desa', d.nama_desa) + kv('Kode Desa', d.kode) + kv('Kecamatan', S.master.config.kecamatan) + kv('Kabupaten', S.master.config.kabupaten) +
-        kv('Kepala Desa', d.kepala_desa || '– (belum diisi Admin KUA)') + kv('Alamat Kantor', d.alamat_kantor || '–') + '</div></div></div>' : '') +
-      '<div class="card"><div class="card-head"><h2>Akun</h2></div><div class="card-body"><div class="kv">' +
-      kv('Username', S.user.username) + kv('Nama Akun', S.user.nama_tampilan) + kv('Peran', roleLabel()) + kv('Operator Sesi Ini', S.user.nama_operator || '–') +
-      '</div><div class="banner neutral mt">' + icon('info') + '<div class="txt">Akun desa dapat dipakai bersama di beberapa perangkat. Isi <b>Nama Operator</b> saat masuk agar riwayat mencatat siapa yang bertugas.</div></div></div></div></div>' +
+      (d ? '<div class="card topline tone-gold"><div class="card-head"><h2>Data Desa</h2><span class="sub">Diisi oleh operator desa</span></div><div class="card-body" id="desaBox"><div class="form-grid">' +
+        '<div class="field"><label>Nama Desa</label><input class="input" value="' + esc(d.nama_desa) + '" readonly></div>' +
+        '<div class="field"><label>Kecamatan / Kabupaten</label><input class="input" value="' + esc(S.master.config.kecamatan + ' / ' + S.master.config.kabupaten) + '" readonly></div>' +
+        '<div class="field full"><label for="pdKades">Nama Kepala Desa</label><input class="input" id="pdKades" value="' + esc(d.kepala_desa || '') + '" placeholder="mis. H. Ahmad Sutrisno"><div class="help">Otomatis mengisi formulir pengajuan &amp; tanda tangan di surat. Bila diubah di formulir, data ini ikut berubah.</div></div>' +
+        '<div class="field full"><label for="pdAlamat">Alamat Kantor Desa</label><input class="input" id="pdAlamat" value="' + esc(d.alamat_kantor || '') + '"></div>' +
+        '<div class="field"><label>Nomor Surat Terakhir</label><input class="input mono" value="' + esc(d.nomor_surat_terakhir || '–') + '" readonly><div class="help">Terisi otomatis dari pengajuan terakhir.</div></div></div>' +
+        '<div class="row end mt"><button class="btn btn-primary" id="pdSave">' + icon('save') + 'Simpan Data Desa</button></div></div></div>' : '') +
+      '<div class="card topline"><div class="card-head"><h2>Akun</h2></div><div class="card-body" id="akunBox"><div class="form-grid">' +
+      '<div class="field"><label for="paUser">Username</label><input class="input mono" id="paUser" value="' + esc(S.user.username) + '" autocomplete="off" autocapitalize="none" spellcheck="false"><div class="help">Huruf kecil, angka, titik. Dipakai saat masuk.</div></div>' +
+      '<div class="field"><label for="paNama">Nama Tampilan</label><input class="input" id="paNama" value="' + esc(S.user.nama_tampilan || '') + '" autocomplete="off"></div>' +
+      '<div class="field"><label>Peran</label><input class="input" value="' + esc(roleLabel()) + '" readonly><div class="help">Peran hanya dapat diubah Admin KUA (Data Master → Akun).</div></div>' +
+      '<div class="field"><label>Operator Sesi Ini</label><input class="input" value="' + esc(S.user.nama_operator || '–') + '" readonly></div></div>' +
+      '<div class="row end mt"><button class="btn btn-primary" id="paSave">' + icon('save') + 'Simpan Akun</button></div>' +
+      (isKua() ? '' : '<div class="banner neutral mt">' + icon('info') + '<div class="txt">Akun desa dapat dipakai bersama di beberapa perangkat. Isi <b>Nama Operator</b> saat masuk agar riwayat mencatat siapa yang bertugas.</div></div>') +
+      '</div></div></div>' +
       '<div class="card"><div class="card-head"><h2>Ganti Password</h2></div><div class="card-body" id="pwBox">' + pwForm() +
       '<div class="row end mt"><button class="btn btn-primary" id="pwSave">' + icon('save') + 'Simpan Password</button></div></div></div></div>';
     bindRefresh(main);
     document.getElementById('pwSave').onclick = async function (e) {
-      if (await submitPw(document.getElementById('pwBox'), e.currentTarget)) UI.$$('#pwBox input').forEach(function (i) { i.value = ''; });
+      if (await submitPw(document.getElementById('pwBox'), e.currentTarget)) UI.$$('#pwBox input[type=password]').forEach(function (i) { i.value = ''; });
     };
+    document.getElementById('paSave').onclick = function () {
+      var b = this;
+      UI.busy(b, async function () {
+        var r = await API.call('updateProfil', { username: document.getElementById('paUser').value, nama_tampilan: document.getElementById('paNama').value });
+        if (!r.success) return UI.toast(r.message, 'error');
+        S.user = Object.assign({}, S.user, r.data.user);
+        var sess = API.session(); if (sess) { sess.user = S.user; API.setSession(sess); }
+        persistState(); renderShell(); route();
+        UI.toast(r.message);
+      });
+    };
+    var pd = document.getElementById('pdSave');
+    if (pd) pd.onclick = function () {
+      UI.busy(pd, async function () {
+        var r = await API.call('saveProfilDesa', { kepala_desa: document.getElementById('pdKades').value, alamat_kantor: document.getElementById('pdAlamat').value });
+        if (!r.success) return UI.toast(r.message, 'error');
+        setDesa(r.data.desa);
+        UI.toast(r.message);
+      });
+    };
+  }
+  /** Perbarui data desa di state (Profil Desa ⇄ formulir: kepala desa & nomor surat terakhir). */
+  function setDesa(d) {
+    if (!d || !d.desa_id) return;
+    if (S.desa && S.desa.desa_id === d.desa_id) S.desa = Object.assign({}, S.desa, d);
+    if (S.master) {
+      var i = S.master.desa.findIndex(function (x) { return x.desa_id === d.desa_id; });
+      if (i >= 0) S.master.desa[i] = Object.assign({}, S.master.desa[i], d);
+    }
+    persistState();
   }
   function kv(k, v) { return '<div><div class="k">' + esc(k) + '</div><div class="v">' + esc(v || '–') + '</div></div>'; }
 
@@ -493,20 +530,21 @@ var App = (function () {
   function panduan() {
     var desa = !isKua();
     UI.modal({
-      title: 'Panduan Teknis Singkat', icon: 'help', size: 'wide',
+      title: 'Panduan Singkat', icon: 'help', size: 'wide',
       body: desa ?
         '<ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:8px">' +
-        '<li><b>Pengajuan Baru</b> — isi data per catin yang berdomisili di desa Anda. Isian tersimpan otomatis.</li>' +
-        '<li>Bila kedua catin dari desa yang sama, setelah selesai pilih <b>Buat Pengajuan Pasangan</b> agar data tidak diketik ulang.</li>' +
-        '<li>Di langkah <b>Periksa &amp; Cetak</b>, cek daftar surat dan peringatan, lalu tekan <b>Simpan &amp; Siap Cetak</b>. Setelah itu data terkunci.</li>' +
-        '<li><b>Cetak Paket PDF</b> → tanda tangan Kepala Desa → stempel → bawa ke KUA.</li>' +
-        '<li>Bila ada kesalahan setelah terkunci, hubungi KUA. KUA dapat <b>mengembalikan</b> berkas atau mengoreksi langsung — bila dikoreksi KUA, muncul tanda <b>Perlu Cetak Ulang</b>.</li>' +
-        '<li>Pembatalan tidak menghapus data dan dapat diaktifkan kembali.</li></ol>' :
+        '<li><b>Pengajuan Baru</b> → isi 4 langkah: <b>Jadwal Akad</b>, <b>Data Calon Suami</b>, <b>Data Calon Istri</b>, <b>Validasi</b>. Isian tersimpan otomatis.</li>' +
+        '<li>Bila calon suami &amp; calon istri sama-sama warga desa ini, pilih <b>Pengajuan Untuk: Calon Suami &amp; Calon Istri</b> — cukup satu pengajuan.</li>' +
+        '<li>Isian bertanda <span style="color:var(--danger)">*</span> wajib diisi; yang belum terisi berubah merah dan langkah berikutnya tidak bisa dibuka.</li>' +
+        '<li>Di langkah <b>Validasi</b> tekan <b>Simpan &amp; Cetak</b> → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.</li>' +
+        '<li>Ada yang salah? Data <b>tetap bisa diedit</b> kapan saja, lalu cetak ulang &amp; tanda tangan ulang. Bila KUA yang mengubah, Anda menerima notifikasi.</li>' +
+        '<li>Nama Kepala Desa &amp; nomor surat terakhir tersimpan otomatis untuk pengajuan berikutnya.</li></ol>' :
         '<ol style="padding-left:18px;margin:0;display:flex;flex-direction:column;gap:8px">' +
-        '<li>Desa mengerjakan seluruh input; data terkunci saat desa menekan <b>Simpan &amp; Siap Cetak</b>.</li>' +
-        '<li>Bila berkas fisik salah: <b>Kembalikan ke Desa</b> (dengan catatan) atau <b>Koreksi Data</b> langsung dengan alasan — dokumen terdampak dibuat versi baru dan desa mendapat tanda Perlu Cetak Ulang.</li>' +
-        '<li><b>Template Surat</b>: buat surat di Google Docs dengan penanda <span class="code-chip">{{field_key}}</span> di folder 01_Template_Sumber, lalu daftarkan. Template yang sudah aktif dibekukan; mengedit Docs sumber tidak mengubah dokumen lama.</li>' +
-        '<li><b>Aturan Paket Surat</b> menentukan surat yang muncul otomatis (mis. N5 bila catin di bawah 21 tahun saat akad).</li>' +
+        '<li>Desa mengisi data dan mencetak sendiri; tidak ada penguncian atau pengembalian berkas.</li>' +
+        '<li>Bila berkas salah: buka pengajuan → <b>Edit Data</b>. Desa otomatis mendapat notifikasi untuk mencetak &amp; menandatangani ulang.</li>' +
+        '<li><b>Template Surat</b>: buat surat di Google Docs dengan penanda <span class="code-chip">{{field_key}}</span> di folder 01_Template_Sumber, lalu daftarkan.</li>' +
+        '<li><b>Aturan Paket Surat</b>: tentukan surat untuk setiap kombinasi <i>Jenis Pengajuan × Pengajuan Untuk</i> (lihat Peta Paket Surat).</li>' +
+        '<li><b>Hari Libur</b>: tanggal yang disilang di kalender akad Kantor KUA. Tambahkan libur tahun berikutnya setelah SKB terbit.</li>' +
         '<li>Template bawaan adalah <b>CONTOH</b> — wajib diganti format resmi yang berlaku.</li></ol>'
     });
   }
@@ -515,6 +553,6 @@ var App = (function () {
     init: init, bootstrap: bootstrap, sessionExpired: sessionExpired, forcePasswordChange: forcePasswordChange, logout: logout,
     isKua: isKua, isAdmin: isAdmin, desaName: desaName, fields: fields, fieldMap: fieldMap, kuaName: kuaName, go: go, route: route,
     rerender: rerender, refreshList: refreshList, upsertRow: upsertRow, refreshSidebar: refreshSidebar, pageHead: pageHead,
-    bindRefresh: bindRefresh, counts: counts, kv: kv, refreshNotif: refreshNotif
+    bindRefresh: bindRefresh, counts: counts, kv: kv, refreshNotif: refreshNotif, setDesa: setDesa
   };
 })();

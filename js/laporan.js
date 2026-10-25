@@ -1,90 +1,9 @@
 /* =====================================================================
- * KUA-Link — laporan.js : Laporan Rekapitulasi & Riwayat/Arsip
+ * KUA-Link — laporan.js : Riwayat Aktivitas, Riwayat Login & Arsip (KUA)
+ * (Laporan rekapitulasi kini menjadi satu dengan Dashboard.)
  * ===================================================================== */
 var Laporan = (function () {
   var esc = UI.esc, icon = UI.icon;
-  var F = { tahun: String(new Date().getFullYear()), bulan: '', desa: '', jenis: '', status: '' };
-
-  function umurCatin(p) { var u = p.peran_catin === 'SUAMI' ? p.umur_suami : p.umur_istri; return u === '' || u === undefined ? null : Number(u); }
-
-  function render(main) {
-    var kua = App.isKua();
-    var rows = S.list.filter(function (p) {
-      return Dashboard.inPeriod(p, F.tahun, F.bulan) && (!F.desa || p.desa_id === F.desa) && (!F.jenis || p.jenis === F.jenis) && (!F.status || p.status === F.status);
-    });
-    var aktif = rows.filter(function (p) { return p.status !== 'DIBATALKAN'; });
-    var u21 = aktif.filter(function (p) { var u = umurCatin(p); return u !== null && u < 21; }).length;
-    var u19 = aktif.filter(function (p) { var u = umurCatin(p); return u !== null && u < 19; }).length;
-    var kor = rows.reduce(function (s, p) { return s + (Number(p.jumlah_koreksi_kua) || 0); }, 0);
-    // per bulan (tahun terpilih, abaikan filter bulan)
-    var yearRows = S.list.filter(function (p) {
-      return Dashboard.inPeriod(p, F.tahun, '') && p.status !== 'DIBATALKAN' && (!F.desa || p.desa_id === F.desa) && (!F.jenis || p.jenis === F.jenis) && (!F.status || p.status === F.status);
-    });
-    var bulan = LK_BULAN.map(function (b, i) {
-      var r = yearRows.filter(function (p) { return Number(Dashboard.periodDate(p).slice(5, 7)) === i + 1; });
-      return { nk: r.filter(function (p) { return p.jenis === 'NIKAH_DI_KUA'; }).length, rk: r.filter(function (p) { return p.jenis === 'REKOMENDASI_KELUAR'; }).length, tot: r.length };
-    });
-    var max = Math.max.apply(null, [1].concat(bulan.map(function (b) { return b.tot; })));
-    var recap = (kua ? S.master.desa : [S.desa || { desa_id: S.user.desa_id, nama_desa: App.desaName(S.user.desa_id) }]).filter(function (d) { return !F.desa || d.desa_id === F.desa; }).map(function (d) {
-      var r = rows.filter(function (p) { return p.desa_id === d.desa_id; });
-      var a = r.filter(function (p) { return p.status !== 'DIBATALKAN'; });
-      return {
-        Desa: d.nama_desa, 'Nikah di KUA': a.filter(function (p) { return p.jenis === 'NIKAH_DI_KUA'; }).length,
-        'Rekomendasi Keluar': a.filter(function (p) { return p.jenis === 'REKOMENDASI_KELUAR'; }).length,
-        'Catin < 21': a.filter(function (p) { var u = umurCatin(p); return u !== null && u < 21; }).length,
-        Draf: r.filter(function (p) { return p.status === 'DRAF'; }).length, Terkunci: r.filter(function (p) { return p.status === 'TERKUNCI'; }).length,
-        Dikembalikan: r.filter(function (p) { return p.status === 'DIKEMBALIKAN'; }).length, Dibatalkan: r.filter(function (p) { return p.status === 'DIBATALKAN'; }).length,
-        'Koreksi KUA': r.reduce(function (s, p) { return s + (Number(p.jumlah_koreksi_kua) || 0); }, 0), Total: r.length
-      };
-    });
-    var cols = ['Nikah di KUA', 'Rekomendasi Keluar', 'Catin < 21', 'Draf', 'Terkunci', 'Dikembalikan', 'Dibatalkan', 'Koreksi KUA', 'Total'];
-    var sum = {};
-    cols.forEach(function (c) { sum[c] = recap.reduce(function (s, r) { return s + r[c]; }, 0); });
-    var per = F.bulan ? LK_BULAN[Number(F.bulan) - 1] + ' ' + F.tahun : 'Tahun ' + F.tahun;
-
-    main.innerHTML = App.pageHead('Beranda / Laporan', 'LAPORAN', 'Rekap Pengajuan') +
-      '<div class="stack"><div class="card filter-card" id="rf"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter Laporan</span><span class="muted" style="font-size:12px">Periode = bulan akad</span></div><div class="fbody"><div class="filter-grid">' +
-      '<div class="field"><label>Tahun</label><select class="select" data-f="tahun">' + UI.options(Dashboard.years(), F.tahun) + '</select></div>' +
-      '<div class="field"><label>Bulan</label><select class="select" data-f="bulan">' + UI.options(Dashboard.bulanOpts(), F.bulan) + '</select></div>' +
-      (kua ? '<div class="field"><label>Desa</label><select class="select" data-f="desa">' + UI.options(S.master.desa.map(function (d) { return { v: d.desa_id, l: d.nama_desa }; }), F.desa, 'Semua Desa') + '</select></div>' : '') +
-      '<div class="field"><label>Jenis</label><select class="select" data-f="jenis">' + UI.options([{ v: 'NIKAH_DI_KUA', l: 'Nikah di KUA' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi Keluar' }], F.jenis, 'Semua') + '</select></div>' +
-      '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(['DRAF', 'TERKUNCI', 'DIKEMBALIKAN', 'DIBATALKAN'], F.status, 'Semua Status') + '</select></div>' +
-      '<div class="actions"><button class="btn" data-reset>Reset</button><button class="btn btn-emerald" data-xls>' + icon('sheet') + 'Ekspor Excel</button></div></div></div></div>' +
-      '<div class="grid g4">' + Dashboard.plainStat('Total Pengajuan', rows.length, per + (F.desa ? ' · ' + App.desaName(F.desa) : ''), 'file', 'var(--text)') +
-      Dashboard.plainStat('Catin < 21 Tahun', u21, 'perlu izin orang tua (N5)', 'users', '#B45309') +
-      Dashboard.plainStat('Catin < 19 Tahun', u19, 'perlu dispensasi Pengadilan Agama', 'alert', 'var(--danger)') +
-      Dashboard.plainStat('Koreksi oleh KUA', kor, 'indikator kualitas input desa', 'pencil', 'var(--blue)') + '</div>' +
-      '<div class="card"><div class="card-head"><div><h2>Pengajuan per Bulan</h2><div class="sub">Tahun ' + esc(F.tahun) + ' · tanpa yang dibatalkan</div></div><div class="end legend"><span><i style="background:var(--emerald)"></i>Nikah di KUA</span><span><i style="background:var(--blue)"></i>Rekomendasi</span></div></div>' +
-      '<div class="card-body"><div class="vbars">' + bulan.map(function (b) {
-        return '<div class="vbar" title="' + b.tot + ' pengajuan"><div class="val">' + (b.tot || '') + '</div><div class="seg" style="height:' + (b.rk / max * 85) + '%;background:var(--blue)"></div><div class="seg" style="height:' + (b.nk / max * 85) + '%;background:var(--emerald);border-radius:' + (b.rk ? '0' : '3px 3px 0 0') + '"></div></div>';
-      }).join('') + '</div><div class="vlabels">' + LK_BULAN.map(function (b) { return '<div>' + b.slice(0, 3) + '</div>'; }).join('') + '</div></div></div>' +
-      '<div class="card"><div class="card-head"><h2>Rekap per Desa</h2><span class="sub">' + esc(per) + '</span></div><div class="table-wrap"><table class="tbl"><thead><tr><th class="c">No</th><th>Desa</th>' + cols.map(function (c) { return '<th class="r">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-      recap.map(function (r, i) { return '<tr><td class="c">' + (i + 1) + '</td><td class="nm">' + esc(r.Desa) + '</td>' + cols.map(function (c) { return '<td class="r">' + (r[c] || '<span class="muted">0</span>') + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody><tfoot><tr><td></td><td>JUMLAH</td>' + cols.map(function (c) { return '<td class="r">' + sum[c] + '</td>'; }).join('') + '</tr></tfoot></table></div></div></div>';
-    App.bindRefresh(main);
-    var rf = main.querySelector('#rf');
-    UI.$$('[data-f]', rf).forEach(function (s) { s.onchange = function () { F[s.dataset.f] = s.value; render(main); }; });
-    rf.querySelector('[data-reset]').onclick = function () { F = { tahun: String(new Date().getFullYear()), bulan: '', desa: '', jenis: '', status: '' }; render(main); };
-    rf.querySelector('[data-xls]').onclick = function () {
-      var b = this;
-      UI.busy(b, async function () {
-        var data = rows.map(function (p) {
-          return {
-            'No. Pengajuan': p.pengajuan_id, Desa: App.desaName(p.desa_id), Jenis: Pengajuan.jenisLabel(p.jenis), 'Pengajuan Untuk': p.peran_catin,
-            'Nama Catin': p.nama_catin, 'NIK Catin': p.nik_catin, 'Nama Pasangan': p.nama_pasangan, 'Tanggal Akad': p.tanggal_akad, 'Umur Suami': p.umur_suami,
-            'Umur Istri': p.umur_istri, 'Nomor Surat': p.nomor_surat, 'Tanggal Surat': p.tanggal_surat, Status: p.status, 'Perlu Cetak Ulang': lkBool(p.perlu_cetak_ulang) ? 'Ya' : '',
-            'Koreksi KUA': Number(p.jumlah_koreksi_kua) || 0, Dibuat: p.dibuat_pada, Dikunci: p.dikunci_pada
-          };
-        });
-        var rekap = recap.concat([Object.assign({ Desa: 'JUMLAH' }, sum)]);
-        var perBulan = LK_BULAN.map(function (b, i) { return { Bulan: b, 'Nikah di KUA': bulan[i].nk, 'Rekomendasi Keluar': bulan[i].rk, Total: bulan[i].tot }; });
-        await UI.exportXlsx('KUA-Link_Laporan_' + F.tahun + (F.bulan ? '-' + ('0' + F.bulan).slice(-2) : '') + '.xlsx', [
-          { name: 'Rekap per Desa', rows: rekap }, { name: 'Per Bulan ' + F.tahun, rows: perBulan }, { name: 'Data Pengajuan', rows: data }
-        ]);
-        UI.toast('Laporan diekspor.');
-      });
-    };
-  }
 
   /* =================================================================
    * RIWAYAT & ARSIP (KUA)
@@ -92,8 +11,9 @@ var Laporan = (function () {
   var tab = 'aktivitas', cache = { audit: null, login: null, arsip: null };
   var AF = { q: '', aksi: '', desa: '' }, LF = { desa: '', hasil: '' };
   var AKSI_LABEL = {
-    BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_SIAP_CETAK: 'Simpan & Siap Cetak', KOREKSI_KUA: 'Koreksi KUA', EDIT_KUA: 'Edit oleh KUA', REVISI_DESA: 'Revisi desa',
-    KEMBALIKAN_KE_DESA: 'Kembalikan ke desa', BATALKAN: 'Batalkan', AKTIFKAN_KEMBALI: 'Aktifkan kembali', SUDAH_CETAK_ULANG: 'Sudah cetak ulang',
+    BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak', EDIT_KUA: 'Edit oleh KUA', EDIT_DESA: 'Edit oleh desa',
+    BATALKAN: 'Batalkan', AKTIFKAN_KEMBALI: 'Aktifkan kembali', UBAH_PROFIL: 'Ubah profil akun', UBAH_PROFIL_DESA: 'Ubah data desa',
+    SIMPAN_LIBUR: 'Simpan hari libur', HAPUS_LIBUR: 'Hapus hari libur',
     BUAT_PASANGAN: 'Buat pengajuan pasangan', TAUTKAN_PASANGAN: 'Tautkan pasangan', GANTI_PASSWORD: 'Ganti password', RESET_PASSWORD: 'Reset password',
     BUAT_AKUN: 'Buat akun', UBAH_AKUN: 'Ubah akun', BUKA_KUNCI_AKUN: 'Buka kunci akun', SIMPAN_DESA: 'Simpan desa', TAMBAH_FIELD: 'Tambah field',
     UBAH_FIELD: 'Ubah field', AKTIFKAN_FIELD: 'Aktifkan field', NONAKTIFKAN_FIELD: 'Nonaktifkan field', AKTIFKAN_TEMPLATE: 'Aktifkan template',
@@ -168,7 +88,7 @@ var Laporan = (function () {
       if (!r.success) { box.innerHTML = '<div class="banner danger">' + esc(r.message) + '</div>'; return; }
       cache.login = r.data;
     }
-    var hasilPill = { SUKSES: '<span class="pill s-TERKUNCI">Sukses</span>', GAGAL: '<span class="pill s-DIBATALKAN">Gagal</span>', TERKUNCI: '<span class="pill s-DIKEMBALIKAN">Terkunci</span>' };
+    var hasilPill = { SUKSES: '<span class="pill s-OK">Sukses</span>', GAGAL: '<span class="pill s-DIBATALKAN">Gagal</span>', TERKUNCI: '<span class="pill s-WARN">Terkunci</span>' };
     var draw = function () {
       var list = cache.login.filter(function (l) { return (!LF.desa || l.desa_id === LF.desa) && (!LF.hasil || l.hasil === LF.hasil); });
       box.querySelector('[data-list]').innerHTML = '<div class="table-wrap"><table class="tbl"><thead><tr><th>Waktu</th><th>Desa / Akun</th><th>Nama Operator</th><th>Perangkat</th><th class="c">Hasil</th></tr></thead><tbody>' +
@@ -195,7 +115,7 @@ var Laporan = (function () {
     box.innerHTML = '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Data <b>tidak perlu dihapus untuk menjaga kecepatan</b> — ±800 pengajuan/tahun masih jauh di bawah batas Google Sheets. Arsipkan tahun lama (≥ 2 tahun) agar sheet aktif ringkas; data arsip tetap bisa dicari.</div></div>' +
       '<div class="card"><div class="card-head"><h2>Arsipkan per Tahun</h2><div class="end"><button class="btn btn-sm" data-loglog>' + icon('archive', 15) + 'Arsipkan Riwayat Login &gt; 12 Bulan</button></div></div><div class="table-wrap"><table class="tbl"><thead><tr><th>Tahun</th><th class="r">Pengajuan di Data Aktif</th><th class="c">Status</th><th class="c">Aksi</th></tr></thead><tbody>' +
       (cache.arsip.map(function (a) {
-        return '<tr><td><b>' + esc(a.tahun) + '</b></td><td class="r">' + a.jumlah_aktif + '</td><td class="c">' + (a.diarsipkan ? '<span class="pill s-INFO">Diarsipkan</span>' : '<span class="pill s-TERKUNCI">Aktif</span>') + '</td>' +
+        return '<tr><td><b>' + esc(a.tahun) + '</b></td><td class="r">' + a.jumlah_aktif + '</td><td class="c">' + (a.diarsipkan ? '<span class="pill s-INFO">Diarsipkan</span>' : '<span class="pill s-OK">Aktif</span>') + '</td>' +
           '<td class="c">' + (a.boleh_arsip ? '<button class="btn btn-sm" data-arch="' + esc(a.tahun) + '">' + icon('archive', 15) + 'Arsipkan</button>' : '<span class="muted" style="font-size:12px">' + (a.jumlah_aktif ? 'belum 2 tahun' : '–') + '</span>') + '</td></tr>';
       }).join('') || '<tr><td colspan="4" class="tbl-empty">Belum ada data.</td></tr>') + '</tbody></table></div></div>' +
       '<div class="card"><div class="card-head"><h2>Cari Arsip</h2></div><div class="card-body"><div class="row"><select class="select" data-ay style="width:160px">' + UI.options(arch.map(function (a) { return a.tahun; }), '', 'Tahun arsip') + '</select>' +
@@ -254,5 +174,5 @@ var Laporan = (function () {
     };
   }
 
-  return { render: render, riwayat: riwayat };
+  return { riwayat: riwayat };
 })();

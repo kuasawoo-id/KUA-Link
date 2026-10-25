@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.1
+# Panduan Instalasi — KUA-Link v1.2
 
 Arsitektur:
 - **Backend** = Google Apps Script (8 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -24,14 +24,22 @@ Struktur Google Drive setelah setup:
 
 ---
 
+## Alur Kerja v1.2 (ringkas)
+
+- **Desa** mengisi 4 langkah: **Jadwal Akad → Data Calon Suami → Data Calon Istri → Validasi**, lalu **Simpan & Cetak** → tanda tangan Kepala Desa → stempel → bawa ke KUA.
+- **Tidak ada penguncian, pengembalian, atau "perlu cetak ulang".** Data tetap bisa diedit desa kapan saja; cetak ulang bila ada perubahan.
+- **KUA** cukup membuka pengajuan → **Edit Data** bila ada yang salah. Desa otomatis mendapat notifikasi untuk mencetak & menandatangani ulang.
+- **Pengajuan Untuk**: Calon Suami, Calon Istri, atau **Calon Suami & Calon Istri** (keduanya warga desa yang sama — cukup satu pengajuan).
+- Status: **Draf** (belum lengkap) · **Siap Cetak** (lengkap) · **Dibatalkan**.
+
 ## Sudah Pernah Memasang Versi Sebelumnya?
 
-Ikuti panduan ini **dari awal**, di proyek Apps Script yang **sama**:
-1. Di Google Drive, hapus (pindahkan ke Sampah) folder database lama, misalnya `📁 LABUKU Link`.
+Struktur data v1.2 berubah (field alamat, status perkawinan, wali, hari libur, aturan surat). **Wajib instal ulang dari awal**, di proyek Apps Script yang **sama**:
+1. Di Google Drive, hapus (pindahkan ke Sampah) folder database lama — `📁 LABUKU Link` dan/atau `Database by Ahzani Labs / KUA-Link`. **Jangan** hapus folder induk `Database by Ahzani Labs` bila berisi aplikasi lain.
 2. Ganti isi **8 berkas** di proyek Apps Script dengan versi ini, lalu lanjutkan dari **langkah A4**. Setup otomatis membersihkan pengaturan lama karena database lamanya sudah dihapus.
 3. Pada **langkah A8**, jangan buat deployment baru. Pakai **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**, supaya URL `/exec` tetap sama dan `GAS_URL` di GitHub tidak perlu diubah.
 4. Semua akun lama ikut hilang bersama database lama. Akun desa dibuat ulang oleh Admin (Bagian D).
-5. Frontend di GitHub: **salin dulu `GAS_URL`** dari `js/config.js` lama → ekstrak ZIP baru ke folder repo (timpa) → tempel kembali `GAS_URL` di `js/config.js` → `git add .` → `git commit -m "KUA-Link v1.1"` → `git push`.
+5. Frontend di GitHub: **salin dulu `GAS_URL`** dari `js/config.js` lama → ekstrak ZIP baru ke folder repo (timpa) → tempel kembali `GAS_URL` di `js/config.js` → `git add .` → `git commit -m "KUA-Link v1.2: alur sederhana, tampilan hijau-emas"` → `git push`.
 
 ---
 
@@ -178,7 +186,7 @@ Bila password telanjur ter-push: **ganti password akun itu segera** (Profil → 
    - Username sudah terisi otomatis (mis. `desa.sawoo`).
    - Ketik **Password Awal** untuk desa itu, minimal 8 karakter, berisi huruf + angka. **Bedakan setiap desa.**
    - Ulangi untuk 14 desa.
-   - Isi juga **Nama Kepala Desa** setiap desa. Nama ini otomatis mengisi formulir dan tanda tangan di surat.
+   - **Nama Kepala Desa diisi oleh operator desa** (Profil Desa, atau langsung di formulir pengajuan — keduanya saling terhubung).
 3. Sampaikan username + password awal ke masing-masing operator desa. Mereka **wajib mengganti** password saat login pertama.
 4. Operator lupa password: **☰ → Reset Password**. Ketik password awal baru; sesi lama operator otomatis dikeluarkan dan ia wajib mengganti password lagi.
 5. **Data Master → Template Surat** — wajib sebelum dipakai resmi:
@@ -186,9 +194,14 @@ Bila password telanjur ter-push: **ganti password akun itu segera** (Profil → 
    - Buat ulang setiap surat sesuai format resmi yang berlaku di Google Docs, di folder `01_Template_Sumber`.
    - Pakai penanda dari menu *Daftar Penanda*, misalnya `{{catin_nama}}` atau `{{akad_tanggal|hari}}`.
    - Daftarkan sebagai **versi baru** dengan kode yang sama (N1, N2, …): **Cek Penanda → Uji PDF → Aktifkan**.
-6. **Data Master → Aturan Paket Surat**:
-   - Tentukan isi paket untuk **Rekomendasi Keluar** (kolom *Berlaku Untuk*).
-   - Periksa aturan N5 dan N6.
+6. **Data Master → Aturan Paket Surat** — lihat **Peta Paket Surat**:
+   - Baris = surat, kolom = kombinasi **Jenis Pengajuan** (Nikah di Wilayah / Rekomendasi) × **Pengajuan Untuk** (Calon Suami / Calon Istri / Suami & Istri).
+   - Klik sel untuk mengatur: ✓ selalu, ⚡ bersyarat (mis. N5 bila umur catin < 21), ×2 = dicetak untuk masing-masing catin pada pengajuan Suami & Istri.
+   - Bawaan: N1, Surat Pernyataan Status, N5, N6 **per catin**; N2 & N4 **sekali** per pasangan. Sesuaikan dengan praktik KUA Anda (mis. apakah N2 dibuat desa untuk Rekomendasi).
+7. **Data Master → Hari Libur**:
+   - Berisi libur nasional & cuti bersama 2026–2027 (SKB 3 Menteri). Tanggal ini disilang di kalender akad bila desa memilih **Kantor KUA**, dan tidak dihitung sebagai hari kerja.
+   - Tambahkan libur tahun berikutnya setelah SKB terbit, atau hari tutup khusus KUA (jenis "Lainnya").
+   - Jam akad di Kantor KUA: 07.30–15.30 tiap 30 menit (ubah di sheet `AppConfig`: `JAM_KANTOR_MULAI`, `JAM_KANTOR_SELESAI`, lalu jalankan `bersihkanCache`).
 
 ---
 
@@ -230,6 +243,9 @@ Tombol *Pasang Aplikasi* tidak muncul bila aplikasi sudah terpasang, atau bila b
 | PDF lama dibuat (±5–10 detik per surat) | Normal. Google Docs → PDF memang memerlukan waktu. Biarkan jendela progres sampai selesai. |
 | Perubahan di sheet tidak muncul | Data master di-cache. Jalankan `bersihkanCache`, atau ubah lewat menu Data Master. |
 | Pop-up PDF tidak terbuka | Izinkan pop-up untuk situs GitHub Pages Anda. Bila diblokir, berkas otomatis diunduh. |
+| Tanggal akad tidak bisa dipilih | Nikah di Kantor KUA hanya pada hari kerja. Pilih tanggal lain, atau pilih "Luar Kantor KUA (Bedolan)" — semua hari bisa dipilih. |
+| Peringatan "pendaftaran terlambat" | Kurang dari 10 hari kerja antara tanggal surat dan tanggal akad: siapkan surat dispensasi pendaftaran nikah dari Kecamatan. |
+| Tombol "Berikutnya" tidak lanjut | Masih ada isian wajib (bertanda merah). Lengkapi lalu tekan lagi. |
 
 ---
 

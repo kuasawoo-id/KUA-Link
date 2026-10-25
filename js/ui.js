@@ -51,7 +51,9 @@ var UI = (function () {
     database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
     user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     fileCheck: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/>',
-    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    calendar: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+    heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>'
   };
   function icon(name, size) {
     var s = size || 18;
@@ -79,10 +81,9 @@ var UI = (function () {
     var w = String(name || '?').replace(/\(.*\)/, '').trim().split(/\s+/).filter(Boolean);
     return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
   }
-  var STATUS_LABEL = { DRAF: 'Draf', TERKUNCI: 'Terkunci', DIKEMBALIKAN: 'Dikembalikan', DIBATALKAN: 'Dibatalkan' };
-  function pill(status) { return '<span class="pill s-' + esc(status) + '">' + esc(status || '–') + '</span>'; }
-  function pillCetak() { return '<span class="pill s-CETAK">Perlu Cetak Ulang</span>'; }
-  function statusPills(p) { return pill(p.status) + (lkBool(p.perlu_cetak_ulang) && p.status === 'TERKUNCI' ? ' ' + pillCetak() : ''); }
+  var STATUS_LABEL = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Dibatalkan' };
+  function pill(status) { return '<span class="pill s-' + esc(status) + '">' + esc(STATUS_LABEL[status] || status || '–') + '</span>'; }
+  function statusPills(p) { return pill(p.status); }
   function debounce(fn, ms) { var t; return function () { var a = arguments, self = this; clearTimeout(t); t = setTimeout(function () { fn.apply(self, a); }, ms); }; }
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -327,6 +328,69 @@ var UI = (function () {
     XLSX.writeFile(wb, filename);
   }
 
+  /* ---------------- PEMILIH TANGGAL (kalender dengan hari libur disilang) ---------------- */
+  var openDp = null;
+  function closeDatePicker() { if (openDp) { openDp.remove(); openDp = null; } }
+  /**
+   * opts: {value:'YYYY-MM-DD', dayInfo(iso) -> {off:bool, title:''}, onPick(iso), note:''}
+   * Hari "off" tampil dicoret merah dan tidak bisa dipilih.
+   */
+  function datePicker(anchor, opts) {
+    closeDatePicker();
+    var base = lkParseDate(opts.value) || lkParseDate(today());
+    var cur = { y: base.y, m: base.m };
+    var pop = document.createElement('div');
+    pop.className = 'dp';
+    pop.setAttribute('role', 'dialog');
+    document.body.appendChild(pop);
+    var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    function draw() {
+      var first = new Date(Date.UTC(cur.y, cur.m - 1, 1)), days = new Date(Date.UTC(cur.y, cur.m, 0)).getUTCDate();
+      var lead = (first.getUTCDay() + 6) % 7; // mulai Senin
+      var cells = '';
+      for (var i = 0; i < lead; i++) cells += '<span></span>';
+      for (var d = 1; d <= days; d++) {
+        var iso = cur.y + '-' + p2(cur.m) + '-' + p2(d);
+        var info = (opts.dayInfo && opts.dayInfo(iso)) || {};
+        var cls = 'd' + (info.off ? ' off' : '') + (iso === opts.value ? ' sel' : '') + (iso === today() ? ' today' : '') + (info.libur ? ' libur' : '');
+        cells += '<button type="button" class="' + cls + '" data-d="' + iso + '"' + (info.title ? ' title="' + esc(info.title) + '"' : '') + '>' + d + '</button>';
+      }
+      pop.innerHTML = '<div class="dp-h"><button type="button" class="btn btn-ghost btn-icon" data-mv="-1" aria-label="Bulan sebelumnya">' + icon('arrowL', 16) + '</button>' +
+        '<b>' + LK_BULAN[cur.m - 1] + ' ' + cur.y + '</b><button type="button" class="btn btn-ghost btn-icon" data-mv="1" aria-label="Bulan berikutnya">' + icon('arrowR', 16) + '</button></div>' +
+        '<div class="dp-w"><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span class="we">Sab</span><span class="we">Min</span></div>' +
+        '<div class="dp-g">' + cells + '</div>' +
+        (opts.note ? '<div class="dp-note">' + opts.note + '</div>' : '') +
+        '<div class="dp-f"><button type="button" class="btn btn-sm" data-today>Hari ini</button><button type="button" class="btn btn-sm btn-ghost" data-x>Tutup</button></div>';
+    }
+    function place() {
+      if (window.innerWidth <= 720) { pop.classList.add('sheet'); return; }
+      var r = anchor.getBoundingClientRect();
+      var top = r.bottom + 6, left = r.left;
+      if (top + pop.offsetHeight > window.innerHeight - 8) top = Math.max(8, r.top - pop.offsetHeight - 6);
+      if (left + pop.offsetWidth > window.innerWidth - 8) left = window.innerWidth - pop.offsetWidth - 8;
+      pop.style.top = top + 'px'; pop.style.left = Math.max(8, left) + 'px';
+    }
+    pop.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    pop.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.mv) { cur.m += Number(b.dataset.mv); if (cur.m < 1) { cur.m = 12; cur.y--; } if (cur.m > 12) { cur.m = 1; cur.y++; } draw(); return; }
+      if (b.hasAttribute('data-x')) { closeDatePicker(); return; }
+      if (b.hasAttribute('data-today')) { var t = lkParseDate(today()); cur = { y: t.y, m: t.m }; draw(); return; }
+      if (b.dataset.d) {
+        if (b.classList.contains('off')) { toast(b.title || 'Tanggal ini tidak tersedia.', 'warning'); return; }
+        closeDatePicker();
+        opts.onPick(b.dataset.d);
+      }
+    });
+    draw(); place();
+    openDp = pop;
+    setTimeout(function () {
+      var h = function (e) { if (openDp === pop && !pop.contains(e.target) && e.target !== anchor) { closeDatePicker(); document.removeEventListener('mousedown', h); } };
+      document.addEventListener('mousedown', h);
+    }, 0);
+  }
+
   /* ---------------- KOMPONEN HTML ---------------- */
   function emptyState(title, sub, action) {
     return '<div class="empty">' + icon('file', 40) + '<b>' + esc(title) + '</b><div>' + esc(sub || '') + '</div>' + (action ? '<div class="mt-s">' + action + '</div>' : '') + '</div>';
@@ -361,7 +425,8 @@ var UI = (function () {
   }
 
   return {
-    icon: icon, esc: esc, tgl: tgl, waktu: waktu, today: today, nowTime: nowTime, initials: initials, pill: pill, pillCetak: pillCetak,
+    icon: icon, esc: esc, tgl: tgl, waktu: waktu, today: today, nowTime: nowTime, initials: initials, pill: pill,
+    datePicker: datePicker, closeDatePicker: closeDatePicker,
     statusPills: statusPills, STATUS_LABEL: STATUS_LABEL, debounce: debounce, $: $, $$: $$, toast: toast, modal: modal, confirm: confirm,
     prompt: prompt, drawer: drawer, menu: menu, closeMenu: closeMenu, busy: busy, loadScript: loadScript, mergePdf: mergePdf,
     openBlob: openBlob, downloadBlob: downloadBlob, preOpen: preOpen, exportXlsx: exportXlsx, emptyState: emptyState,

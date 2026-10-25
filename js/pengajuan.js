@@ -7,14 +7,15 @@ var Pengajuan = (function () {
   var F = { id: '', nik: '', nama: '', jenis: '', status: '', desa: '', dari: '', sampai: '', q: '' };
   var page = 1, PAGE = 20, collapsed = false, lastParamsKey = '';
 
-  function jenisLabel(v) { return v === 'REKOMENDASI_KELUAR' ? 'Rekomendasi Keluar' : v === 'NIKAH_DI_KUA' ? 'Nikah di KUA' : '–'; }
+  function jenisLabel(v) { return v === 'REKOMENDASI_KELUAR' ? 'Rekomendasi (Luar Wilayah)' : v === 'NIKAH_DI_KUA' ? 'Nikah di Wilayah' : '–'; }
+  function peranLabel(v) { var x = LK_PERAN.find(function (o) { return o.v === v; }); return x ? x.l.replace('Calon Suami & Calon Istri', 'Suami & Istri') : '–'; }
   function find(id) { return S.list.find(function (p) { return p.pengajuan_id === id; }); }
 
   function applyFilter(list) {
     var q = F.q.toLowerCase(), nama = F.nama.toLowerCase();
     return list.filter(function (p) {
-      if (F.status === 'CETAK') { if (!(p.status === 'TERKUNCI' && lkBool(p.perlu_cetak_ulang))) return false; }
-      else if (F.status && p.status !== F.status) return false;
+      if (!F.status) { if (p.status === 'DIBATALKAN') return false; }
+      else if (p.status !== F.status) return false;
       if (F.jenis && p.jenis !== F.jenis) return false;
       if (F.desa && p.desa_id !== F.desa) return false;
       if (F.id && p.pengajuan_id.toLowerCase().indexOf(F.id.toLowerCase()) < 0) return false;
@@ -27,8 +28,8 @@ var Pengajuan = (function () {
     });
   }
 
-  var STATUS_OPTS = [{ v: 'DRAF', l: 'Draf' }, { v: 'TERKUNCI', l: 'Terkunci' }, { v: 'DIKEMBALIKAN', l: 'Dikembalikan' }, { v: 'CETAK', l: 'Perlu Cetak Ulang' }, { v: 'DIBATALKAN', l: 'Dibatalkan' }];
-  var TITLES = { DRAF: 'Draf', TERKUNCI: 'Terkunci', DIKEMBALIKAN: 'Dikembalikan', CETAK: 'Perlu Cetak Ulang', DIBATALKAN: 'Dibatalkan' };
+  var STATUS_OPTS = [{ v: 'DRAF', l: 'Draf (belum lengkap)' }, { v: 'SELESAI', l: 'Siap Cetak' }, { v: 'DIBATALKAN', l: 'Dibatalkan' }];
+  var TITLES = { DRAF: 'Draf', SELESAI: 'Siap Cetak', DIBATALKAN: 'Dibatalkan' };
 
   /* ---------------- DAFTAR ---------------- */
   function renderList(main, params, soft) {
@@ -41,18 +42,18 @@ var Pengajuan = (function () {
       lastParamsKey = key;
     }
     var kua = App.isKua();
-    main.innerHTML = App.pageHead('Beranda / Pelayanan Nikah / Pengajuan Nikah', kua ? 'SEMUA PENGAJUAN' : 'DAFTAR PENGAJUAN', F.status ? TITLES[F.status] : 'Pengajuan Nikah') +
+    main.innerHTML = App.pageHead('Beranda / Pengajuan Nikah', F.status === 'DIBATALKAN' ? 'PENGAJUAN DIBATALKAN' : 'DAFTAR PENGAJUAN', F.status ? TITLES[F.status] : 'Pengajuan Aktif') +
       '<div class="stack"><div class="card filter-card' + (collapsed ? ' collapsed' : '') + '" id="lf"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter Pencarian</span><span class="sep"></span>' +
       '<span class="caption">Data Pengajuan</span><button class="toggle" data-toggle>' + (collapsed ? '▾ Tampilkan' : '▴ Sembunyikan') + '</button></div><div class="fbody"><div class="filter-grid">' +
       fi('id', 'No. Pengajuan', 'cth. LK-2026-00125') + fi('nik', 'NIK Catin', '16 digit NIK', 'numeric') + fi('nama', 'Nama Catin', 'min. 3 karakter') +
-      '<div class="field"><label>Jenis</label><select class="select" data-f="jenis">' + UI.options([{ v: 'NIKAH_DI_KUA', l: 'Nikah di KUA' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi Keluar' }], F.jenis, 'Semua') + '</select></div>' +
-      '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(STATUS_OPTS, F.status, 'Semua Status') + '</select></div>' +
+      '<div class="field"><label>Jenis</label><select class="select" data-f="jenis">' + UI.options([{ v: 'NIKAH_DI_KUA', l: 'Nikah di Wilayah' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi (Luar Wilayah)' }], F.jenis, 'Semua') + '</select></div>' +
+      '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(STATUS_OPTS, F.status, 'Semua Aktif') + '</select></div>' +
       (kua ? '<div class="field"><label>Desa</label><select class="select" data-f="desa">' + UI.options(S.master.desa.map(function (d) { return { v: d.desa_id, l: d.nama_desa }; }), F.desa, 'Semua Desa') + '</select></div>' : '') +
       '<div class="field"><label>Tgl Akad Dari</label><input class="input" type="date" data-f="dari" value="' + esc(F.dari) + '"></div>' +
       '<div class="field"><label>Tgl Akad Sampai</label><input class="input" type="date" data-f="sampai" value="' + esc(F.sampai) + '"></div>' +
       '<div class="actions"><button class="btn" data-reset>Reset</button><button class="btn btn-primary" data-apply>' + icon('search', 16) + 'Tampilkan</button></div>' +
       '</div>' + (F.q ? '<div class="banner neutral mt-s">' + icon('search') + '<div class="txt">Pencarian cepat: <b>' + esc(F.q) + '</b></div><a href="#" data-clearq>Hapus</a></div>' : '') + '</div></div>' +
-      '<div class="row">' + (kua ? '' : '<a class="btn btn-primary" href="#/form/new" style="height:44px">' + icon('plus') + 'Pengajuan Baru</a><span class="muted">Isi data catin sekali — paket surat dibuat otomatis.</span>') +
+      '<div class="row">' + (kua ? '' : '<a class="btn btn-primary btn-gold" href="#/form/new" style="height:44px">' + icon('plus') + 'Pengajuan Baru</a><span class="muted hide-sm">Isi data catin sekali — paket surat dibuat otomatis.</span>') +
       '<button class="btn" id="btnXls" style="margin-left:auto">' + icon('sheet') + 'Ekspor Excel</button></div>' +
       '<div class="card" id="listCard"></div></div>';
     App.bindRefresh(main);
@@ -94,7 +95,7 @@ var Pengajuan = (function () {
           (kua ? '<td data-l="Desa">' + esc(App.desaName(p.desa_id)) + '</td>' : '') +
           '<td data-l="Tgl. Dibuat" class="nowrap">' + UI.tgl(p.dibuat_pada) + '</td><td data-l="NIK Catin" class="mono">' + esc(p.nik_catin || '–') + '</td>' +
           '<td class="nm" data-l="Nama Catin">' + esc((p.nama_catin || '(belum diisi)').toUpperCase()) + '</td>' +
-          '<td class="c" data-l="Peran">' + (p.peran_catin ? '<span class="pill s-NEUTRAL">' + esc(p.peran_catin) + '</span>' : '–') + '</td>' +
+          '<td class="c" data-l="Peran">' + (p.peran_catin ? '<span class="pill s-NEUTRAL">' + esc(peranLabel(p.peran_catin)) + '</span>' : '–') + '</td>' +
           '<td data-l="Nama Pasangan">' + esc((p.nama_pasangan || '–').toUpperCase()) + (p.pasangan_pengajuan_id ? ' <span title="Tertaut ' + esc(p.pasangan_pengajuan_id) + '">' + icon('link', 13) + '</span>' : '') + '</td>' +
           '<td data-l="Tanggal Akad" class="nowrap">' + UI.tgl(p.tanggal_akad) + '</td><td class="c">' + UI.statusPills(p) + '</td></tr>';
       }).join('') + '</tbody></table></div><div class="tbl-foot">' + pg.html + '</div>';
@@ -106,16 +107,10 @@ var Pengajuan = (function () {
   function actionMenu(p, anchor) {
     var kua = App.isKua();
     var st = p.status;
-    var editable = st === 'DRAF' || st === 'DIKEMBALIKAN';
     var items = [{ label: 'Lihat Detail', icon: 'eye', onClick: function () { App.go('#/detail/' + p.pengajuan_id); } }];
-    if (kua && st === 'TERKUNCI') items.push({ label: 'Koreksi Data', icon: 'pencil', onClick: function () { App.go('#/koreksi/' + p.pengajuan_id); } });
-    else items.push({ label: 'Edit', icon: 'pencil', disabled: !editable, title: st === 'TERKUNCI' ? 'Data terkunci — hubungi KUA' : '', onClick: function () { App.go('#/form/' + p.pengajuan_id); } });
-    items.push({ label: 'Cetak Paket PDF', icon: 'printer', disabled: !(st === 'TERKUNCI' || st === 'DIBATALKAN'), title: editable ? 'Kunci data dulu (Simpan & Siap Cetak)' : '', onClick: function () { printPackage(p.pengajuan_id); } });
-    if (!kua) items.push({ label: 'Buat Pengajuan Pasangan', icon: 'userPlus', disabled: !!p.pasangan_pengajuan_id || st === 'DIBATALKAN', title: p.pasangan_pengajuan_id ? 'Sudah tertaut ' + p.pasangan_pengajuan_id : '', onClick: function () { createPartner(p); } });
-    if (kua) {
-      items.push({ label: 'Kembalikan ke Desa', icon: 'rotate', disabled: st !== 'TERKUNCI', onClick: function () { returnToDesa(p); } });
-      items.push({ label: 'Tautkan Pasangan', icon: 'link', disabled: st === 'DIBATALKAN', onClick: function () { linkPartner(p); } });
-    }
+    items.push({ label: kua ? 'Edit Data (KUA)' : 'Edit', icon: 'pencil', disabled: st === 'DIBATALKAN', title: st === 'DIBATALKAN' ? 'Aktifkan kembali dulu' : '', onClick: function () { App.go('#/form/' + p.pengajuan_id); } });
+    items.push({ label: 'Cetak Paket PDF', icon: 'printer', disabled: !(st === 'SELESAI' || st === 'DIBATALKAN'), title: st === 'DRAF' ? 'Lengkapi data lalu tekan Simpan & Cetak di langkah Validasi' : '', onClick: function () { printPackage(p.pengajuan_id); } });
+    if (kua) items.push({ label: 'Tautkan Pasangan', icon: 'link', disabled: st === 'DIBATALKAN' || p.peran_catin === 'SUAMI_ISTRI', onClick: function () { linkPartner(p); } });
     items.push('-');
     if (st === 'DIBATALKAN') items.push({ label: 'Aktifkan Kembali', icon: 'rotate', onClick: function () { reactivate(p); } });
     else items.push({ label: 'Batalkan', icon: 'xCircle', danger: true, onClick: function () { cancel(p); } });
@@ -145,34 +140,6 @@ var Pengajuan = (function () {
     var ok = await UI.confirm({ title: 'Aktifkan Kembali', icon: 'rotate', message: 'Status ' + p.pengajuan_id + ' akan kembali ke ' + (p.status_sebelum_batal || 'DRAF') + '.', ok: 'Aktifkan' });
     if (!ok) return;
     var r = await API.call('reactivatePengajuan', { id: p.pengajuan_id });
-    if (!r.success) return UI.toast(r.message, 'error');
-    afterChange(r.data.row, r.message);
-  }
-
-  async function createPartner(p) {
-    var ke = p.peran_catin === 'SUAMI' ? 'Calon Istri' : 'Calon Suami';
-    var dari = p.peran_catin === 'SUAMI' ? 'Calon Suami' : 'Calon Istri';
-    var ok = await UI.confirm({
-      title: 'Buat Pengajuan Pasangan', icon: 'userPlus', ok: 'Buat Draf Pasangan',
-      html: 'Seluruh data <b class="mono">' + esc(p.pengajuan_id) + '</b> akan disalin dan peran ditukar: <b>' + dari + ' → ' + ke + '</b>.<br><br>Catin baru: <b>' + esc(p.nama_pasangan || '(belum diisi)') + '</b>. Nomor surat desa dikosongkan untuk diisi ulang.'
-    });
-    if (!ok) return;
-    var r = await API.call('createPartner', { id: p.pengajuan_id });
-    if (!r.success) return UI.toast(r.message, 'error');
-    App.upsertRow(r.data.asal);
-    App.upsertRow(r.data.row);
-    UI.toast(r.message);
-    App.go('#/form/' + r.data.id);
-  }
-
-  async function returnToDesa(p) {
-    var catatan = await UI.prompt({
-      title: 'Kembalikan ke Desa', icon: 'rotate', ok: 'Kembalikan', label: 'Catatan untuk desa',
-      html: '<p style="margin-top:0"><b class="mono">' + esc(p.pengajuan_id) + '</b> — Desa ' + esc(App.desaName(p.desa_id)) + '<br><span class="muted">Desa akan bisa mengedit lagi, lalu mencetak &amp; menandatangani ulang.</span></p>',
-      placeholder: 'Mis. NIK ayah calon istri salah, sesuaikan dengan KK'
-    });
-    if (!catatan) return;
-    var r = await API.call('returnToDesa', { id: p.pengajuan_id, catatan: catatan });
     if (!r.success) return UI.toast(r.message, 'error');
     afterChange(r.data.row, r.message);
   }
@@ -216,6 +183,7 @@ var Pengajuan = (function () {
     return new Promise(function (resolve) {
       var tpl = {};
       S.master.templates.forEach(function (t) { if (lkBool(t.aktif)) tpl[t.kode] = t.nama; });
+      var nm = function (key) { var x = lkSplitKey(key); return (tpl[x.kode] || '') + (x.untuk ? ' — ' + lkUntukLabel(x.untuk) : ''); };
       var state = kodes.map(function (k) { return { k: k, st: 'wait', msg: '' }; });
       var m = UI.modal({ title: title || 'Membuat dokumen…', icon: 'fileCheck', sticky: true, body: '<div data-pb></div>', foot: '<button class="btn hidden" data-retry>' + icon('refresh') + 'Ulangi yang Gagal</button><button class="btn btn-primary hidden" data-done>Selesai</button>' });
       m.root.dataset.sticky = '1';
@@ -226,7 +194,7 @@ var Pengajuan = (function () {
           '<div class="progress mt-s"><div style="width:' + (done / state.length * 100) + '%"></div></div><div class="plist">' +
           state.map(function (s) {
             var ic = s.st === 'ok' ? '<span style="color:var(--emerald)">' + icon('check', 18) + '</span>' : s.st === 'run' ? '<span class="spin" style="display:inline-block;width:16px;height:16px;border:2px solid var(--emerald);border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span>' : s.st === 'fail' ? '<span style="color:var(--danger)">' + icon('xCircle', 18) + '</span>' : '<span class="muted">○</span>';
-            return '<div><span class="st">' + ic + '</span><span><b>' + esc(s.k) + '</b> ' + esc(tpl[s.k] || '') + (s.msg ? ' <span class="muted">— ' + esc(s.msg) + '</span>' : '') + '</span></div>';
+            return '<div><span class="st">' + ic + '</span><span><b>' + esc(lkSplitKey(s.k).kode) + '</b> ' + esc(nm(s.k)) + (s.msg ? ' <span class="muted">— ' + esc(s.msg) + '</span>' : '') + '</span></div>';
           }).join('') + '</div><p class="muted" style="font-size:12.5px;margin-bottom:0">Setiap surat dibuat dari template Google Docs (±5–10 detik per surat). Jangan tutup halaman ini.</p>';
       };
       var run = async function () {
@@ -261,6 +229,11 @@ var Pengajuan = (function () {
     var t = S.master.templates.find(function (x) { return x.kode === kode && lkBool(x.aktif); }) || S.master.templates.find(function (x) { return x.kode === kode; });
     return t ? Number(t.urutan_paket) || 99 : 99;
   }
+  /** Urutkan dokumen: urutan paket, lalu calon suami sebelum calon istri. */
+  function sortDocs(list) {
+    var ord = { '': 0, suami: 1, istri: 2 };
+    return list.slice().sort(function (a, b) { return tplOrder(a.template_kode) - tplOrder(b.template_kode) || (ord[a.untuk || ''] - ord[b.untuk || '']) || Number(b.versi_dokumen) - Number(a.versi_dokumen); });
+  }
 
   async function printPackage(id, btn) {
     var win = UI.preOpen();
@@ -268,15 +241,16 @@ var Pengajuan = (function () {
       var st = await API.call('docsStatus', { id: id });
       if (!st.success) { if (win) win.close(); return UI.toast(st.message, 'error'); }
       var p = find(id) || {};
-      if (st.data.dokumen_perlu.length && p.status === 'TERKUNCI') {
+      if (p.status === 'DRAF') { if (win) win.close(); return UI.toast('Data belum lengkap. Buka Edit → langkah Validasi → Simpan & Cetak.', 'warning'); }
+      if (st.data.dokumen_perlu.length && p.status === 'SELESAI') {
         if (win) win.close();
-        var ok = await UI.confirm({ title: 'Dokumen belum lengkap', icon: 'fileCheck', message: 'Surat berikut belum dibuat / belum sesuai data terbaru: ' + st.data.dokumen_perlu.join(', ') + '. Buat sekarang?', ok: 'Buat Dokumen' });
+        var ok = await UI.confirm({ title: 'Perbarui surat?', icon: 'fileCheck', message: 'Surat berikut belum dibuat / belum sesuai data terbaru: ' + st.data.dokumen_perlu.join(', ') + '. Buat sekarang, lalu cetak?', ok: 'Buat & Cetak' });
         if (!ok) return;
         await generateDocs(id, st.data.dokumen_perlu, 'Melengkapi dokumen ' + id);
         if (window.Detail && Detail.currentId() === id) Detail.reload();
         return printPackage(id);
       }
-      var aktif = st.data.dokumen.filter(function (d) { return d.aktif; }).sort(function (a, b) { return tplOrder(a.template_kode) - tplOrder(b.template_kode); });
+      var aktif = sortDocs(st.data.dokumen.filter(function (d) { return d.aktif; }));
       if (!aktif.length) { if (win) win.close(); return UI.toast('Belum ada dokumen untuk dicetak.', 'warning'); }
       var pdfs = await Promise.all(aktif.map(function (d) { return API.call('getDocPdf', { dokumen_id: d.dokumen_id }); }));
       var bad = pdfs.find(function (r) { return !r.success; });
@@ -306,9 +280,9 @@ var Pengajuan = (function () {
       var fs = App.fields().filter(function (f) { return lkBool(f.aktif) && !f.turunan; });
       var data = r.data.map(function (p) {
         var o = {
-          'No. Pengajuan': p.pengajuan_id, 'Desa': App.desaName(p.desa_id), 'Status': p.status,
-          'Perlu Cetak Ulang': lkBool(p.perlu_cetak_ulang) ? 'Ya' : '', 'Dibuat': p.dibuat_pada, 'Diubah': p.diubah_pada, 'Dikunci': p.dikunci_pada,
-          'Koreksi KUA': p.jumlah_koreksi_kua, 'Pasangan Tertaut': p.pasangan_pengajuan_id, 'Alasan Batal': p.alasan_batal, 'Catatan KUA': p.catatan_kua
+          'No. Pengajuan': p.pengajuan_id, 'Desa': App.desaName(p.desa_id), 'Status': UI.STATUS_LABEL[p.status] || p.status,
+          'Dibuat': p.dibuat_pada, 'Diubah': p.diubah_pada, 'Siap Cetak Sejak': p.dikunci_pada,
+          'Diedit KUA': p.jumlah_koreksi_kua, 'Pasangan Tertaut': p.pasangan_pengajuan_id, 'Alasan Batal': p.alasan_batal
         };
         fs.forEach(function (f) {
           var v = p.data[f.field_key];
@@ -322,8 +296,8 @@ var Pengajuan = (function () {
   }
 
   return {
-    renderList: renderList, actionMenu: actionMenu, cancel: cancel, reactivate: reactivate, createPartner: createPartner,
-    returnToDesa: returnToDesa, linkPartner: linkPartner, generateDocs: generateDocs, printPackage: printPackage,
+    renderList: renderList, actionMenu: actionMenu, cancel: cancel, reactivate: reactivate,
+    linkPartner: linkPartner, generateDocs: generateDocs, printPackage: printPackage, sortDocs: sortDocs, peranLabel: peranLabel,
     downloadDoc: downloadDoc, jenisLabel: jenisLabel, find: find, exportExcel: exportExcel, tplOrder: tplOrder
   };
 })();
@@ -372,34 +346,29 @@ var Detail = (function () {
 
   function render() {
     var p = data.pengajuan, d = data.data, kua = App.isKua();
-    var st = p.status, editable = st === 'DRAF' || st === 'DIKEMBALIKAN';
+    var st = p.status;
     var o = el();
-    var der = lkDerive(d, App.fields(), { id: p.pengajuan_id, desa: App.desaName(p.desa_id), kua: App.kuaName() });
+    var der = lkDerive(d, App.fields(), { id: p.pengajuan_id, desa: App.desaName(p.desa_id), kua: App.kuaName(), cfg: S.master.config });
 
     var actions = '';
-    if (st === 'TERKUNCI' || st === 'DIBATALKAN') actions += '<button class="btn btn-primary" data-print>' + icon('printer') + 'Cetak Paket PDF</button>';
-    if (editable) actions += '<a class="btn' + (st === 'DIKEMBALIKAN' && !kua ? ' btn-primary' : '') + '" href="#/form/' + esc(p.pengajuan_id) + '">' + icon('pencil') + (st === 'DIKEMBALIKAN' ? 'Perbaiki Data' : 'Lanjutkan Mengisi') + '</a>';
-    if (kua && st === 'TERKUNCI') actions += '<a class="btn" href="#/koreksi/' + esc(p.pengajuan_id) + '">' + icon('pencil') + 'Koreksi Data</a><button class="btn" data-return>' + icon('rotate') + 'Kembalikan ke Desa</button>';
-    actions += '<button class="btn" data-more data-menu-anchor>' + icon('menu') + 'Aksi Lain</button>';
+    if (st === 'SELESAI' || st === 'DIBATALKAN') actions += '<button class="btn btn-primary btn-gold" data-print>' + icon('printer') + '<span>Cetak Paket PDF</span></button>';
+    if (st !== 'DIBATALKAN') actions += '<a class="btn' + (st === 'DRAF' ? ' btn-primary' : '') + '" href="#/form/' + esc(p.pengajuan_id) + '">' + icon('pencil') + '<span>' + (st === 'DRAF' ? 'Lanjutkan Mengisi' : kua ? 'Edit Data' : 'Edit') + '</span></a>';
+    actions += '<button class="btn" data-more data-menu-anchor>' + icon('menu') + '<span class="hide-sm">Aksi Lain</span></button>';
 
     var banners = '';
-    if (st === 'TERKUNCI' && lkBool(p.perlu_cetak_ulang)) {
-      var k = lastAudit('KOREKSI_KUA');
-      banners += '<div class="banner info">' + icon('printer') + '<div class="txt"><b>Diubah KUA' + (k ? ' ' + UI.waktu(k.waktu) : '') + '</b>' + (k && k.alasan ? ' — ' + esc(k.alasan) : '') +
-        '. Dokumen versi terbaru perlu dicetak &amp; ditandatangani ulang Kepala Desa.</div>' + (!kua ? '<button class="btn btn-sm" data-reprinted>' + icon('check', 15) + 'Tandai Sudah Dicetak Ulang</button>' : '') + '</div>';
-    }
-    if (st === 'DIKEMBALIKAN') banners += '<div class="banner warn">' + icon('rotate') + '<div class="txt"><b>Dikembalikan KUA:</b> ' + esc(p.catatan_kua || '-') + '</div></div>';
+    var ed = lastAudit('EDIT_KUA');
+    if (ed && st !== 'DIBATALKAN') banners += '<div class="banner info">' + icon('printer') + '<div class="txt"><b>Data diubah KUA ' + UI.waktu(ed.waktu) + '.</b> Bila berkas sudah dicetak, cetak ulang versi terbaru dan minta tanda tangan ulang Kepala Desa.</div></div>';
+    if (st === 'DRAF') banners += '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>Data belum lengkap.</b> Lanjutkan mengisi sampai langkah <b>Validasi</b>, lalu tekan <b>Simpan &amp; Cetak</b>.</div></div>';
     if (st === 'DIBATALKAN') banners += '<div class="banner danger">' + icon('xCircle') + '<div class="txt"><b>Dibatalkan:</b> ' + esc(p.alasan_batal || '-') + '. Data tetap tersimpan.</div><button class="btn btn-sm" data-reactivate>' + icon('rotate', 15) + 'Aktifkan Kembali</button></div>';
-    if (st === 'TERKUNCI' && data.dokumen_perlu && data.dokumen_perlu.length) banners += '<div class="banner warn">' + icon('fileCheck') + '<div class="txt">Dokumen belum lengkap / belum sesuai data terbaru: <b>' + esc(data.dokumen_perlu.join(', ')) + '</b>.</div><button class="btn btn-sm" data-gen>' + icon('refresh', 15) + 'Buat Dokumen</button></div>';
-    if (st === 'TERKUNCI' && !kua) banners += '<div class="row muted" style="font-size:13px">' + icon('lock', 16) + 'Data terkunci — koreksi melalui KUA.</div>';
+    if (st === 'SELESAI' && data.dokumen_perlu && data.dokumen_perlu.length) banners += '<div class="banner neutral">' + icon('fileCheck') + '<div class="txt">Surat akan dibuat/diperbarui otomatis saat dicetak: <b>' + esc(data.dokumen_perlu.join(', ')) + '</b>.</div></div>';
 
     o.innerHTML = '<div class="ov-top"><div class="ttl"><b>Detail Pengajuan</b><span><span class="mono" style="color:var(--text);font-weight:600">' + esc(p.pengajuan_id) + '</span> · Desa ' + esc(App.desaName(p.desa_id)) + ' · ' + esc(Pengajuan.jenisLabel(p.jenis)) + '</span></div>' +
-      '<div class="row">' + UI.statusPills(p) + '</div><div class="end">' + actions + '<button class="btn btn-ghost btn-icon" data-x aria-label="Tutup">' + icon('x', 22) + '</button></div></div>' +
+      '<div class="row hide-sm">' + UI.statusPills(p) + '</div><div class="end">' + actions + '<button class="btn btn-ghost btn-icon" data-x aria-label="Tutup">' + icon('x', 22) + '</button></div></div>' +
       '<div class="ov-scroll"><div class="ov-inner"><div class="stack" style="gap:12px">' + banners + '</div><div class="mt">' +
       acc('ringkas', 'file', 'Ringkasan', ringkasan(p, d, der)) +
-      acc('catin', 'users', 'Data Calon Pengantin', groupsView(d, der, 2, true)) +
-      acc('adm', 'building', 'Administrasi & Rencana Akad', groupsView(d, der, 1, false)) +
-      acc('saksi', 'users', 'Saksi & Kondisi Khusus', groupsView(d, der, 3, false) + groupsView(d, der, 4, false)) +
+      acc('jadwal', 'calendar', 'Jadwal Akad & Administrasi', groupsView(d, der, 1)) +
+      acc('suami', 'user', 'Data Calon Suami', groupsView(d, der, 2)) +
+      acc('istri', 'user', 'Data Calon Istri', groupsView(d, der, 3)) +
       acc('dok', 'fileCheck', 'Dokumen & Versi (' + data.dokumen.length + ')', dokumenView()) +
       acc('riwayat', 'history', 'Riwayat Perubahan (' + data.riwayat.length + ')', riwayatView()) +
       '</div></div></div>';
@@ -415,37 +384,38 @@ var Detail = (function () {
     var f = function (k) { return lkFormat(der[k], fm[k]); };
     return '<div class="kv">' +
       App.kv('Desa', App.desaName(p.desa_id)) + App.kv('Jenis Pengajuan', f('jenis_pengajuan')) +
-      App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Catin', (d[(p.peran_catin === 'SUAMI' ? 'suami' : 'istri') + '_nama'] || '–')) +
-      App.kv('Pasangan', p.nama_pasangan || '–') + App.kv('Hari, Tanggal Akad', d.akad_tanggal ? lkHari(d.akad_tanggal) + ', ' + lkTanggalPanjang(d.akad_tanggal) : '–') +
-      App.kv('Jam & Tempat Akad', [d.akad_jam, d.akad_tempat].filter(Boolean).join(' · ') || '–') + App.kv('Nomor / Tanggal Surat Desa', (d.adm_nomor_surat || '–') + ' / ' + (d.adm_tanggal_surat ? lkTanggalPanjang(d.adm_tanggal_surat) : '–')) +
+      App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Calon Suami', d.suami_nama || '–') + App.kv('Calon Istri', d.istri_nama || '–') +
+      App.kv('Hari, Tanggal Akad', d.akad_tanggal ? lkHari(d.akad_tanggal) + ', ' + lkTanggalPanjang(d.akad_tanggal) : '–') +
+      App.kv('Jam & Tempat Akad', [d.akad_jam ? d.akad_jam + ' WIB' : '', d.akad_tempat].filter(Boolean).join(' · ') || '–') + App.kv('Nomor / Tanggal Surat Desa', (d.adm_nomor_surat || '–') + ' / ' + (d.adm_tanggal_surat ? lkTanggalPanjang(d.adm_tanggal_surat) : '–')) +
       App.kv('Umur saat Akad', 'Suami ' + (der.suami_umur_saat_akad || '–') + ' th · Istri ' + (der.istri_umur_saat_akad || '–') + ' th') +
       App.kv('Pengajuan Pasangan', data.pasangan ? data.pasangan.pengajuan_id + ' · ' + data.pasangan.nama_catin + ' (' + App.desaName(data.pasangan.desa_id) + ', ' + data.pasangan.status + ')' : 'Belum tertaut') +
       App.kv('Dibuat', UI.waktu(p.dibuat_pada) + ' — ' + p.dibuat_oleh) + App.kv('Terakhir Diubah', UI.waktu(p.diubah_pada) + ' — ' + p.diubah_oleh) +
-      App.kv('Dikunci', p.dikunci_pada ? UI.waktu(p.dikunci_pada) : '–') + App.kv('Koreksi oleh KUA', (p.jumlah_koreksi_kua || 0) + ' kali') +
+      App.kv('Siap Cetak Sejak', p.dikunci_pada ? UI.waktu(p.dikunci_pada) : '–') + App.kv('Diedit oleh KUA', (p.jumlah_koreksi_kua || 0) + ' kali') +
       '</div>';
   }
 
-  function groupsView(d, der, step, tabs) {
+  function groupsView(d, der, step) {
     var fs = App.fields().filter(function (f) { return lkBool(f.aktif) && !f.turunan; });
     var groups = LK_GROUPS.filter(function (g) { return g.step === step; });
     var parts = groups.map(function (g) {
       var list = fs.filter(function (f) { return f.grup === g.key && lkVisible(f, der); });
+      if (g.key === 'Wali Nikah' && der.wali_jenis === 'Nasab' && der.wali_hubungan === LK_WALI_AYAH) {
+        list = list.concat(['wali_nama', 'wali_bin', 'wali_nik'].map(function (k) { return App.fieldMap()[k]; }).filter(Boolean));
+      }
       if (!list.length) return null;
-      return { g: g, html: '<div class="kv">' + list.map(function (f) { return App.kv(f.label, lkFormat(d[f.field_key], f)); }).join('') + '</div>' };
+      return '<div class="caption mt-s" style="margin-bottom:10px">' + esc(g.label || g.key.replace(/^(Ayah|Ibu) (Suami|Istri)$/, '$1 Calon $2')) + '</div><div class="kv">' +
+        list.map(function (f) { return App.kv(f.label, lkFormat(/_nama$/.test(f.field_key) ? der[f.field_key] : (d[f.field_key] !== undefined ? d[f.field_key] : der[f.field_key]), f)); }).join('') + '</div>';
     }).filter(Boolean);
-    if (!parts.length) return step === 4 ? '<p class="muted">Tidak ada kondisi khusus (catin bukan duda/janda).</p>' : '<p class="muted">Belum ada data.</p>';
-    if (!tabs) return parts.map(function (x) { return '<div class="caption mt-s" style="margin-bottom:10px">' + esc(x.g.label || x.g.key) + '</div>' + x.html; }).join('<hr style="border:0;border-top:1px solid var(--border);margin:16px 0">');
-    return '<div class="subtabs" style="margin:0 -20px 16px;border-top:1px solid var(--border)">' + parts.map(function (x, i) { return '<button class="subtab' + (i ? '' : ' active') + '" data-dtab="' + i + '">' + esc(x.g.key) + '</button>'; }).join('') + '</div>' +
-      parts.map(function (x, i) { return '<div data-dpane="' + i + '"' + (i ? ' class="hidden"' : '') + '>' + x.html + '</div>'; }).join('');
+    return parts.length ? parts.join('<hr style="border:0;border-top:1px solid var(--border);margin:16px 0">') : '<p class="muted">Belum ada data.</p>';
   }
 
   function dokumenView() {
     var docs = data.dokumen || [];
-    if (!docs.length) return '<p class="muted">Dokumen dibuat setelah desa menekan <b>Simpan &amp; Siap Cetak</b>.</p>';
-    var alasan = { AWAL: 'Awal', KOREKSI_KUA: 'Koreksi KUA', REVISI_DESA: 'Revisi Desa' };
+    if (!docs.length) return '<p class="muted">Surat dibuat saat menekan <b>Simpan &amp; Cetak</b> di langkah Validasi.</p>';
+    var alasan = { AWAL: 'Awal', EDIT_KUA: 'Diedit KUA', EDIT_DESA: 'Diedit Desa', KOREKSI_KUA: 'Koreksi KUA', REVISI_DESA: 'Revisi Desa' };
     return '<div class="table-wrap"><table class="tbl"><thead><tr><th>Surat</th><th class="c">Versi</th><th class="c">Template</th><th>Dibuat</th><th>Keterangan</th><th class="c">Aksi</th></tr></thead><tbody>' +
-      docs.slice().sort(function (a, b) { return Pengajuan.tplOrder(a.template_kode) - Pengajuan.tplOrder(b.template_kode) || Number(b.versi_dokumen) - Number(a.versi_dokumen); }).map(function (d) {
-        return '<tr style="' + (d.aktif ? '' : 'color:var(--muted)') + '"><td class="nm"><b>' + esc(d.template_kode) + '</b> ' + esc(d.template_nama) + '</td><td class="c"><span class="pill ' + (d.aktif ? 's-OK' : 's-NEUTRAL') + '">v' + esc(d.versi_dokumen) + '</span></td>' +
+      Pengajuan.sortDocs(docs).map(function (d) {
+        return '<tr style="' + (d.aktif ? '' : 'color:var(--muted)') + '"><td class="nm"><b>' + esc(d.template_kode) + '</b> ' + esc(d.template_nama) + (d.untuk ? '<span class="sub">' + esc(lkUntukLabel(d.untuk)) + '</span>' : '') + '</td><td class="c"><span class="pill ' + (d.aktif ? 's-OK' : 's-NEUTRAL') + '">v' + esc(d.versi_dokumen) + '</span></td>' +
           '<td class="c">v' + esc(d.template_versi) + '</td><td class="nowrap">' + UI.waktu(d.dibuat_pada) + '<span class="sub">' + esc(d.dibuat_oleh) + '</span></td>' +
           '<td>' + esc(alasan[d.alasan] || d.alasan) + ' ' + (d.aktif ? '<span class="tag">Aktif</span>' : '<span class="tag gray">Usang</span>') + '</td>' +
           '<td class="c"><button class="btn btn-sm" data-dl="' + esc(d.dokumen_id) + '">' + icon('download', 15) + 'Unduh</button></td></tr>';
@@ -453,8 +423,8 @@ var Detail = (function () {
   }
 
   var AKSI = {
-    BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_SIAP_CETAK: 'Simpan & Siap Cetak (dikunci)', KOREKSI_KUA: 'Koreksi oleh KUA', EDIT_KUA: 'Diedit KUA',
-    REVISI_DESA: 'Revisi oleh desa', KEMBALIKAN_KE_DESA: 'Dikembalikan ke desa', BATALKAN: 'Dibatalkan', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
+    BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak (siap cetak)', EDIT_KUA: 'Diedit KUA', EDIT_DESA: 'Diedit desa',
+    BATALKAN: 'Dibatalkan', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
     SUDAH_CETAK_ULANG: 'Ditandai sudah dicetak ulang', BUAT_PASANGAN: 'Dibuat dari pengajuan pasangan', TAUTKAN_PASANGAN: 'Ditautkan dengan pasangan'
   };
   function riwayatView() {
@@ -489,20 +459,8 @@ var Detail = (function () {
     });
     var pr = o.querySelector('[data-print]');
     if (pr) pr.onclick = function () { Pengajuan.printPackage(p.pengajuan_id, pr); };
-    var rt = o.querySelector('[data-return]');
-    if (rt) rt.onclick = function () { Pengajuan.returnToDesa(p); };
     var ra = o.querySelector('[data-reactivate]');
     if (ra) ra.onclick = function () { Pengajuan.reactivate(p); };
-    var gen = o.querySelector('[data-gen]');
-    if (gen) gen.onclick = async function () { await Pengajuan.generateDocs(p.pengajuan_id, data.dokumen_perlu, 'Membuat dokumen'); reload(); };
-    var rp = o.querySelector('[data-reprinted]');
-    if (rp) rp.onclick = function () {
-      UI.busy(rp, async function () {
-        var r = await API.call('markReprinted', { id: p.pengajuan_id });
-        if (!r.success) return UI.toast(r.message, 'error');
-        App.upsertRow(r.data.row); UI.toast(r.message); reload();
-      });
-    };
     o.querySelector('[data-more]').onclick = function (e) { Pengajuan.actionMenu(p, e.currentTarget); };
     UI.$$('[data-dl]', o).forEach(function (b) {
       b.onclick = function () { var d = data.dokumen.find(function (x) { return x.dokumen_id === b.dataset.dl; }); Pengajuan.downloadDoc(d, b); };

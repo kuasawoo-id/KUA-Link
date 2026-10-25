@@ -70,6 +70,7 @@ var Master = (function () {
     if (!users || !soft) {
       main.innerHTML = head('AKUN DESA', 'Data Master') + '<div class="card"><table class="tbl"><tbody>' + UI.skeletonRows(6, 6) + '</tbody></table></div>';
       var r = await API.call('listUsers');
+      if (location.hash.indexOf('#/master/akun') !== 0) return; // pengguna sudah pindah halaman
       if (!r.success) { main.innerHTML = head('AKUN DESA', 'Data Master') + '<div class="banner danger">' + icon('xCircle') + '<div class="txt">' + esc(r.message) + '</div></div>'; return; }
       users = r.data;
     }
@@ -141,7 +142,7 @@ var Master = (function () {
       title: d.desa_id ? 'Edit Data Desa' : 'Tambah Desa', icon: 'building',
       body: '<div class="form-grid"><div class="field"><label>Nama Desa<span class="req">*</span></label><input class="input" data-v="nama_desa" value="' + esc(d.nama_desa) + '"></div>' +
         '<div class="field"><label>Kode Desa</label><input class="input" data-v="kode" value="' + esc(d.kode) + '"></div>' +
-        '<div class="field full"><label>Nama Kepala Desa</label><input class="input" data-v="kepala_desa" value="' + esc(d.kepala_desa) + '"><div class="help">Otomatis mengisi formulir desa & tanda tangan di surat.</div></div>' +
+        '<div class="field full"><label>Nama Kepala Desa</label><input class="input" value="' + esc(d.kepala_desa || '— belum diisi desa —') + '" readonly><div class="help">Diisi operator desa di Profil Desa atau saat mengisi pengajuan.</div></div>' +
         '<div class="field full"><label>Alamat Kantor Desa</label><input class="input" data-v="alamat_kantor" value="' + esc(d.alamat_kantor) + '"></div>' +
         '<label class="switch"><input type="checkbox" data-v="aktif"' + (lkBool(d.aktif) ? ' checked' : '') + '>Desa aktif</label></div>',
       foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>Simpan</button>'
@@ -149,7 +150,7 @@ var Master = (function () {
     m.root.querySelector('[data-ok]').onclick = function () {
       var b = this, g = function (k) { var x = m.root.querySelector('[data-v="' + k + '"]'); return x.type === 'checkbox' ? x.checked : x.value.trim(); };
       UI.busy(b, async function () {
-        var r = await API.call('saveDesa', { desa_id: d.desa_id, nama_desa: g('nama_desa'), kode: g('kode'), kepala_desa: g('kepala_desa'), alamat_kantor: g('alamat_kantor'), aktif: g('aktif') });
+        var r = await API.call('saveDesa', { desa_id: d.desa_id, nama_desa: g('nama_desa'), kode: g('kode'), alamat_kantor: g('alamat_kantor'), aktif: g('aktif') });
         if (!r.success) return UI.toast(r.message, 'error');
         setMaster(r.data.master); m.close(); UI.toast(r.message); drawAkun(main);
       });
@@ -535,35 +536,74 @@ var Master = (function () {
     if (tabAturan === 'paket') drawRules(box, main); else drawWarnings(box, main);
   }
 
+  var JENIS = [{ v: 'NIKAH_DI_KUA', l: 'Nikah di Wilayah' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi' }];
+  var PERAN = LK_PERAN.map(function (x) { return { v: x.v, l: x.v === 'SUAMI_ISTRI' ? 'Suami & Istri' : x.l }; });
   function jenisText(j) {
     if (!j || j === 'SEMUA') return 'Semua jenis';
-    return j.split(';').map(function (x) { return x === 'NIKAH_DI_KUA' ? 'Nikah di KUA' : x === 'REKOMENDASI_KELUAR' ? 'Rekomendasi Keluar' : x; }).join(', ');
+    return j.split(';').map(function (x) { var o = JENIS.find(function (y) { return y.v === x; }); return o ? o.l : x; }).join(', ');
+  }
+  function peranText(j) {
+    if (!j || j === 'SEMUA') return 'Semua catin';
+    return j.split(';').map(function (x) { var o = PERAN.find(function (y) { return y.v === x; }); return o ? o.l : x; }).join(', ');
+  }
+  function ruleHits(r, jenis, peran) {
+    var bj = lkStr(r.berlaku_untuk_jenis), bp = lkStr(r.berlaku_untuk_peran);
+    return lkBool(r.aktif) && (!bj || bj === 'SEMUA' || bj.split(';').indexOf(jenis) >= 0) && (!bp || bp === 'SEMUA' || bp.split(';').indexOf(peran) >= 0);
+  }
+  /** Peta Paket Surat: template × (Jenis Pengajuan × Pengajuan Untuk). */
+  function matrixHtml(tplK) {
+    var combos = [];
+    JENIS.forEach(function (j) { PERAN.forEach(function (p) { combos.push({ j: j, p: p }); }); });
+    return '<div class="card"><div class="card-head"><div><h2>Peta Paket Surat</h2><div class="sub">Surat yang dicetak untuk setiap kombinasi. Klik sel untuk mengatur.</div></div>' +
+      '<div class="end legend"><span>' + '<b class="mx on">✓</b> selalu</span><span><b class="mx cond">⚡</b> bersyarat</span><span><b class="mx two">×2</b> per catin</span></div></div>' +
+      '<div class="table-wrap"><table class="tbl matrix"><thead><tr><th rowspan="2">Surat</th>' + JENIS.map(function (j) { return '<th class="c" colspan="3">' + esc(j.l) + '</th>'; }).join('') + '</tr><tr>' +
+      combos.map(function (c) { return '<th class="c">' + esc(c.p.l) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      tplK.filter(function (x) { return x.aktif; }).map(function (x) {
+        return '<tr><td class="nm"><b class="mono">' + esc(x.kode) + '</b><span class="sub">' + esc(x.show.nama) + '</span></td>' + combos.map(function (c) {
+          var rs = S.master.rules.filter(function (r) { return r.template_kode === x.kode && ruleHits(r, c.j.v, c.p.v); });
+          var always = rs.some(function (r) { return r.mode === 'SELALU'; });
+          var two = c.p.v === 'SUAMI_ISTRI' && rs.some(function (r) { return r.lingkup === 'PER_CATIN'; });
+          var cell = !rs.length ? '<span class="muted">–</span>' : (always ? '<b class="mx on">✓</b>' : '<b class="mx cond">⚡</b>') + (two ? '<b class="mx two">×2</b>' : '');
+          return '<td class="c mxcell" data-mx="' + esc(x.kode) + '|' + c.j.v + '|' + c.p.v + '" title="' + esc(x.kode + ' · ' + c.j.l + ' · ' + c.p.l) + '">' + cell + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div></div>';
   }
 
   function drawRules(box, main) {
     var tplK = kodes();
     var noRule = tplK.filter(function (x) { return x.aktif && !S.master.rules.some(function (r) { return r.template_kode === x.kode && lkBool(r.aktif); }); });
     box.innerHTML = '<div class="stack">' +
-      '<div class="banner neutral">' + icon('info') + '<div class="txt">Aturan menentukan surat mana yang otomatis masuk paket. Contoh: <b>N5</b> muncul bila <i>Umur Catin saat Akad &lt; 21</i>. Gunakan field <b>catin_*</b> agar aturan merujuk catin pengajuan ini (bukan pasangannya).</div></div>' +
+      '<div class="banner neutral">' + icon('info') + '<div class="txt">Aturan menentukan surat yang dicetak untuk setiap kombinasi <b>Jenis Pengajuan × Pengajuan Untuk</b>. Contoh: <b>N5</b> muncul bila <i>Umur Catin saat Akad &lt; 21</i>. Gunakan field <b>catin_*</b> agar aturan merujuk catin yang bersangkutan. Lingkup <b>Per catin</b> pada pengajuan Suami &amp; Istri mencetak surat untuk masing-masing catin.</div></div>' +
+      matrixHtml(tplK) +
       (noRule.length ? '<div class="banner warn">' + icon('alert') + '<div class="txt">Template aktif tanpa aturan (tidak akan pernah muncul di paket): <b>' + noRule.map(function (x) { return esc(x.kode); }).join(', ') + '</b></div></div>' : '') +
       '<div class="row"><button class="btn btn-primary" data-newrule>' + icon('plus') + 'Tambah Aturan</button></div>' +
-      '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th class="c" style="width:52px">No</th><th class="c" style="width:64px">Action</th><th>Surat</th><th class="c">Muncul</th><th>Kondisi</th><th>Berlaku Untuk</th><th class="c">Status</th></tr></thead><tbody>' +
+      '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th class="c" style="width:52px">No</th><th class="c" style="width:64px">Action</th><th>Surat</th><th class="c">Muncul</th><th>Kondisi</th><th>Berlaku Untuk</th><th class="c">Lingkup</th><th class="c">Status</th></tr></thead><tbody>' +
       (S.master.rules.slice().sort(function (a, b) { return Pengajuan.tplOrder(a.template_kode) - Pengajuan.tplOrder(b.template_kode); }).map(function (r, i) {
         var t = tplK.find(function (x) { return x.kode === r.template_kode; });
         return '<tr' + (lkBool(r.aktif) ? '' : ' style="opacity:.55"') + '><td class="c">' + (i + 1) + '</td><td class="c"><button class="btn btn-menu" data-menu-anchor data-rule="' + esc(r.rule_id) + '">' + icon('menu', 16) + '</button></td>' +
           '<td class="nm"><b class="mono">' + esc(r.template_kode) + '</b> ' + esc(t ? t.show.nama : '(template tidak ada)') + (r.keterangan ? '<span class="sub">' + esc(r.keterangan) + '</span>' : '') + '</td>' +
           '<td class="c">' + (r.mode === 'SELALU' ? '<span class="pill s-NEUTRAL">Selalu</span>' : '<span class="pill s-INFO">Bersyarat</span>') + '</td>' +
-          '<td>' + (r.mode === 'SELALU' ? '<span class="muted">—</span>' : esc(describe(r.logika, lkJson(r.kondisi_json, [])))) + '</td><td>' + esc(jenisText(r.berlaku_untuk_jenis)) + '</td>' +
+          '<td>' + (r.mode === 'SELALU' ? '<span class="muted">—</span>' : esc(describe(r.logika, lkJson(r.kondisi_json, [])))) + '</td><td>' + esc(jenisText(r.berlaku_untuk_jenis)) + '<span class="sub">' + esc(peranText(r.berlaku_untuk_peran)) + '</span></td>' +
+          '<td class="c">' + (r.lingkup === 'PER_CATIN' ? '<span class="tag">Per catin</span>' : '<span class="tag gray">Sekali</span>') + '</td>' +
           '<td class="c">' + (lkBool(r.aktif) ? '<span class="pill s-TERKUNCI">Aktif</span>' : '<span class="pill s-NEUTRAL">Nonaktif</span>') + '</td></tr>';
-      }).join('') || '<tr><td colspan="7" class="tbl-empty">Belum ada aturan.</td></tr>') + '</tbody></table></div></div></div>';
+      }).join('') || '<tr><td colspan="8" class="tbl-empty">Belum ada aturan.</td></tr>') + '</tbody></table></div></div></div>';
     box.querySelector('[data-newrule]').onclick = function () { editRule(null, main); };
+    UI.$$('[data-mx]', box).forEach(function (td) {
+      td.onclick = function () {
+        var a = td.dataset.mx.split('|');
+        var rs = S.master.rules.filter(function (r) { return r.template_kode === a[0] && ruleHits(r, a[1], a[2]); });
+        if (rs.length === 1) return editRule(rs[0], main);
+        if (rs.length > 1) return UI.menu(td, a[0] + ' — pilih aturan', rs.map(function (r) { return { label: (r.mode === 'SELALU' ? 'Selalu' : 'Bersyarat') + ' · ' + jenisText(r.berlaku_untuk_jenis) + ' · ' + peranText(r.berlaku_untuk_peran), icon: 'pencil', onClick: function () { editRule(r, main); } }; }));
+        editRule({ template_kode: a[0], mode: 'SELALU', logika: 'SEMUA', kondisi_json: '[]', berlaku_untuk_jenis: a[1], berlaku_untuk_peran: a[2], lingkup: 'PER_CATIN', aktif: 'TRUE' }, main);
+      };
+    });
     UI.$$('[data-rule]', box).forEach(function (b) {
       b.onclick = function () {
         var r = S.master.rules.find(function (x) { return x.rule_id === b.dataset.rule; });
         UI.menu(b, 'Aturan ' + r.template_kode, [
           { label: 'Edit Aturan', icon: 'pencil', onClick: function () { editRule(r, main); } },
           { label: lkBool(r.aktif) ? 'Nonaktifkan' : 'Aktifkan', icon: lkBool(r.aktif) ? 'xCircle' : 'check', danger: lkBool(r.aktif), onClick: async function () {
-            var res = await API.call('saveRule', { rule_id: r.rule_id, template_kode: r.template_kode, mode: r.mode, logika: r.logika, kondisi: lkJson(r.kondisi_json, []), berlaku_untuk_jenis: r.berlaku_untuk_jenis, aktif: !lkBool(r.aktif), keterangan: r.keterangan });
+            var res = await API.call('saveRule', { rule_id: r.rule_id, template_kode: r.template_kode, mode: r.mode, logika: r.logika, kondisi: lkJson(r.kondisi_json, []), berlaku_untuk_jenis: r.berlaku_untuk_jenis, berlaku_untuk_peran: r.berlaku_untuk_peran, lingkup: r.lingkup, aktif: !lkBool(r.aktif), keterangan: r.keterangan });
             if (!res.success) return UI.toast(res.message, 'error');
             setMaster(res.data.master); UI.toast(res.message); aturan(main);
           } }
@@ -573,17 +613,18 @@ var Master = (function () {
   }
 
   function editRule(r, main) {
-    r = r || { mode: 'SELALU', logika: 'SEMUA', kondisi_json: '[]', berlaku_untuk_jenis: 'SEMUA', aktif: 'TRUE' };
-    var jenis = lkStr(r.berlaku_untuk_jenis);
-    var all = !jenis || jenis === 'SEMUA';
+    r = r || { mode: 'SELALU', logika: 'SEMUA', kondisi_json: '[]', berlaku_untuk_jenis: 'SEMUA', berlaku_untuk_peran: 'SEMUA', lingkup: 'PER_CATIN', aktif: 'TRUE' };
+    var jenis = lkStr(r.berlaku_untuk_jenis), peran = lkStr(r.berlaku_untuk_peran);
+    var all = !jenis || jenis === 'SEMUA', allP = !peran || peran === 'SEMUA';
     var m = UI.modal({
       title: r.rule_id ? 'Edit Aturan — ' + r.template_kode : 'Tambah Aturan', icon: 'sliders', size: 'xwide',
       body: '<div class="split"><div class="stack" style="gap:14px"><div class="form-grid"><div class="field"><label>Surat<span class="req">*</span></label><select class="select" data-v="kode">' +
         UI.options(kodes().map(function (x) { return { v: x.kode, l: x.kode + ' — ' + x.show.nama }; }), r.template_kode, '— Pilih —') + '</select></div>' +
         '<div class="field"><label>Muncul</label><select class="select" data-v="mode">' + UI.options([{ v: 'SELALU', l: 'Selalu dalam paket' }, { v: 'KONDISI', l: 'Bersyarat (jika kondisi terpenuhi)' }], r.mode) + '</select></div></div>' +
         '<div class="field" data-condwrap><label>Kondisi</label><div class="card card-body" data-cond style="padding:14px"></div></div>' +
-        '<div class="field"><label>Berlaku untuk Jenis Pengajuan</label><div class="row"><label class="check"><input type="checkbox" data-j="NIKAH_DI_KUA"' + (all || jenis.indexOf('NIKAH_DI_KUA') >= 0 ? ' checked' : '') + '>Nikah di KUA</label>' +
-        '<label class="check"><input type="checkbox" data-j="REKOMENDASI_KELUAR"' + (all || jenis.indexOf('REKOMENDASI_KELUAR') >= 0 ? ' checked' : '') + '>Rekomendasi Keluar</label></div></div>' +
+        '<div class="field"><label>Berlaku untuk Jenis Pengajuan</label><div class="row">' + JENIS.map(function (x) { return '<label class="check"><input type="checkbox" data-j="' + x.v + '"' + (all || jenis.split(';').indexOf(x.v) >= 0 ? ' checked' : '') + '>' + esc(x.l) + '</label>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>Berlaku untuk Pengajuan Untuk</label><div class="row">' + PERAN.map(function (x) { return '<label class="check"><input type="checkbox" data-p="' + x.v + '"' + (allP || peran.split(';').indexOf(x.v) >= 0 ? ' checked' : '') + '>' + esc(x.l) + '</label>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>Lingkup pada pengajuan Suami &amp; Istri</label><select class="select" data-v="lingkup">' + UI.options([{ v: 'PER_CATIN', l: 'Per catin — dicetak untuk suami DAN istri (×2)' }, { v: 'SEKALI', l: 'Sekali — satu surat untuk pasangan' }], r.lingkup || 'PER_CATIN') + '</select></div>' +
         '<div class="field"><label>Keterangan / Dasar</label><input class="input" data-v="ket" value="' + esc(r.keterangan) + '"></div>' +
         '<label class="switch"><input type="checkbox" data-v="aktif"' + (lkBool(r.aktif) ? ' checked' : '') + '>Aturan aktif</label></div>' +
         '<div class="card"><div class="card-head"><h3 style="font-size:15px">' + icon('eye', 18) + ' Uji Aturan</h3></div><div class="card-body"><select class="select" data-uji>' +
@@ -595,10 +636,12 @@ var Master = (function () {
     m.root.querySelector('[data-v="mode"]').onchange = sync; sync();
     var current = function () {
       var j = UI.$$('[data-j]', m.root).filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.j; });
+      var pp = UI.$$('[data-p]', m.root).filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.p; });
       var c = getCond();
       return {
         rule_id: r.rule_id, template_kode: m.root.querySelector('[data-v="kode"]').value, mode: m.root.querySelector('[data-v="mode"]').value,
-        logika: c.logika, kondisi: c.kondisi, berlaku_untuk_jenis: j.length === 2 || !j.length ? 'SEMUA' : j.join(';'),
+        logika: c.logika, kondisi: c.kondisi, berlaku_untuk_jenis: j.length === JENIS.length || !j.length ? 'SEMUA' : j.join(';'),
+        berlaku_untuk_peran: pp.length === PERAN.length || !pp.length ? 'SEMUA' : pp.join(';'), lingkup: m.root.querySelector('[data-v="lingkup"]').value,
         aktif: m.root.querySelector('[data-v="aktif"]').checked, keterangan: m.root.querySelector('[data-v="ket"]').value.trim()
       };
     };
@@ -608,14 +651,14 @@ var Master = (function () {
       res.innerHTML = '<div class="skel"></div>';
       var g = await API.call('getPengajuan', { id: id });
       if (!g.success) { res.textContent = g.message; return; }
-      var der = lkDerive(g.data.data, App.fields(), { id: id });
+      var der = lkDerive(g.data.data, App.fields(), { id: id, cfg: S.master.config });
       var cr = current();
       var hit = cr.mode === 'SELALU' || lkEvalGroup(der, { logika: cr.logika, kondisi: cr.kondisi });
-      var rules = S.master.rules.filter(function (x) { return x.rule_id !== r.rule_id; }).concat([{ template_kode: cr.template_kode, mode: cr.mode, logika: cr.logika, kondisi_json: JSON.stringify(cr.kondisi), berlaku_untuk_jenis: cr.berlaku_untuk_jenis, aktif: cr.aktif ? 'TRUE' : 'FALSE' }]);
+      var rules = S.master.rules.filter(function (x) { return !r.rule_id || x.rule_id !== r.rule_id; }).concat([{ template_kode: cr.template_kode, mode: cr.mode, logika: cr.logika, kondisi_json: JSON.stringify(cr.kondisi), berlaku_untuk_jenis: cr.berlaku_untuk_jenis, berlaku_untuk_peran: cr.berlaku_untuk_peran, lingkup: cr.lingkup, aktif: cr.aktif ? 'TRUE' : 'FALSE' }]);
       var pkg = lkPackage(der, rules, S.master.templates, App.fields());
       res.classList.remove('muted');
       res.innerHTML = '<div class="banner ' + (hit ? 'ok' : 'neutral') + '">' + icon(hit ? 'checkCircle' : 'info') + '<div class="txt">Aturan ini <b>' + (hit ? 'TERPENUHI' : 'tidak terpenuhi') + '</b> untuk ' + esc(id) + '.</div></div>' +
-        '<div class="caption mt-s" style="margin-bottom:6px">Paket surat hasil uji</div>' + (pkg.map(function (t) { return '<div style="padding:3px 0"><b class="mono">' + esc(t.kode) + '</b> ' + esc(t.nama) + (t.alasan ? '<span class="sub muted" style="display:block;font-size:12px">' + esc(t.alasan) + '</span>' : '') + '</div>'; }).join('') || '<span class="muted">Kosong</span>');
+        '<div class="caption mt-s" style="margin-bottom:6px">Paket surat hasil uji</div>' + (pkg.map(function (t) { return '<div style="padding:3px 0"><b class="mono">' + esc(t.kode) + '</b> ' + esc(t.label) + (t.alasan ? '<span class="sub muted" style="display:block;font-size:12px">' + esc(t.alasan) + '</span>' : '') + '</div>'; }).join('') || '<span class="muted">Kosong</span>');
     };
     m.root.querySelector('[data-ok]').onclick = function () {
       var b = this, cr = current();
@@ -629,8 +672,8 @@ var Master = (function () {
   }
 
   function drawWarnings(box, main) {
-    var tingkat = { INFO: '<span class="pill s-INFO">Info</span>', PERINGATAN: '<span class="pill s-DIKEMBALIKAN">Peringatan</span>', BLOKIR: '<span class="pill s-DIBATALKAN">Blokir</span>' };
-    box.innerHTML = '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Peringatan tampil di langkah <b>Periksa &amp; Cetak</b>. Tingkat <b>Blokir</b> mencegah data dikunci sampai diperbaiki.</div></div>' +
+    var tingkat = { INFO: '<span class="pill s-INFO">Info</span>', PERINGATAN: '<span class="pill s-WARN">Peringatan</span>', BLOKIR: '<span class="pill s-DIBATALKAN">Blokir</span>' };
+    box.innerHTML = '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Peringatan tampil di langkah <b>Validasi</b>. Tingkat <b>Blokir</b> mencegah surat dicetak sampai diperbaiki. Pemeriksaan bawaan (hari/jam kerja Kantor KUA, batas 10 hari kerja pendaftaran, poligami, wali) selalu aktif.</div></div>' +
       '<div class="row"><button class="btn btn-primary" data-neww>' + icon('plus') + 'Tambah Peringatan</button></div>' +
       '<div class="card"><div class="table-wrap"><table class="tbl"><thead><tr><th class="c" style="width:64px">Action</th><th>Pesan</th><th class="c">Tingkat</th><th>Kondisi</th><th class="c">Status</th></tr></thead><tbody>' +
       (S.master.warnings.map(function (w) {
@@ -663,5 +706,52 @@ var Master = (function () {
     };
   }
 
-  return { akun: akun, field: field, template: template, aturan: aturan, editField: editField, describe: describe };
+  /* =================================================================
+   * HARI LIBUR (tanggal disilang di kalender akad Kantor KUA)
+   * ================================================================= */
+  var liburTahun = String(new Date().getFullYear());
+  function libur(main) {
+    var all = S.master.libur || [];
+    var tahunList = {};
+    tahunList[liburTahun] = 1; tahunList[String(new Date().getFullYear() + 1)] = 1;
+    all.forEach(function (x) { tahunList[x.tanggal.slice(0, 4)] = 1; });
+    var list = all.filter(function (x) { return x.tanggal.slice(0, 4) === liburTahun; });
+    var JL = { LIBUR_NASIONAL: 'Libur Nasional', CUTI_BERSAMA: 'Cuti Bersama', LAINNYA: 'Lainnya' };
+    main.innerHTML = head('HARI LIBUR', 'Data Master') +
+      '<div class="stack"><div class="banner neutral">' + icon('calendar') + '<div class="txt">Tanggal di sini <b>disilang</b> pada kalender akad bila desa memilih <b>Nikah di Kantor KUA</b>, dan tidak dihitung sebagai hari kerja untuk batas pendaftaran 10 hari kerja. Data awal: SKB 3 Menteri libur nasional &amp; cuti bersama 2026–2027. Tambahkan tahun berikutnya setelah SKB terbit.</div></div>' +
+      '<div class="split"><div class="card"><div class="card-head"><h2>Daftar Hari Libur</h2><div class="end"><select class="select" data-ty style="width:120px;height:36px">' + UI.options(Object.keys(tahunList).sort(), liburTahun) + '</select></div></div>' +
+      '<div class="table-wrap"><table class="tbl"><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="c">Jenis</th><th class="c" style="width:64px">Hapus</th></tr></thead><tbody>' +
+      (list.map(function (x) {
+        return '<tr><td class="nowrap"><b>' + esc(lkHari(x.tanggal)) + '</b>, ' + esc(lkTanggalPanjang(x.tanggal)) + '</td><td>' + esc(x.keterangan) + '</td><td class="c"><span class="tag ' + (x.jenis === 'CUTI_BERSAMA' ? 'amber' : x.jenis === 'LAINNYA' ? 'gray' : '') + '">' + esc(JL[x.jenis] || x.jenis) + '</span></td>' +
+          '<td class="c"><button class="btn btn-ghost btn-icon" data-del="' + esc(x.tanggal) + '" title="Hapus">' + icon('trash', 16) + '</button></td></tr>';
+      }).join('') || '<tr><td colspan="4" class="tbl-empty">Belum ada hari libur tahun ' + esc(liburTahun) + '.</td></tr>') + '</tbody></table></div>' +
+      '<div class="tbl-foot"><span class="muted">' + list.length + ' tanggal · tahun ' + esc(liburTahun) + '</span></div></div>' +
+      '<div class="card topline tone-gold"><div class="card-head"><h2>Tambah / Ubah</h2></div><div class="card-body"><div class="stack" style="gap:14px">' +
+      '<div class="field"><label>Tanggal<span class="req">*</span></label><input class="input" type="date" data-lt></div>' +
+      '<div class="field"><label>Keterangan<span class="req">*</span></label><input class="input" data-lk placeholder="mis. Cuti Bersama Idulfitri"></div>' +
+      '<div class="field"><label>Jenis</label><select class="select" data-lj>' + UI.options(Object.keys(JL).map(function (k) { return { v: k, l: JL[k] }; }), 'LIBUR_NASIONAL') + '</select></div>' +
+      '<div class="help">Tanggal yang sudah ada akan diperbarui. Libur khusus KUA (mis. rapat dinas) bisa ditambahkan sebagai "Lainnya".</div>' +
+      '<div class="row end"><button class="btn btn-primary" data-ladd>' + icon('save') + 'Simpan</button></div></div></div></div></div></div>';
+    App.bindRefresh(main);
+    main.querySelector('[data-ty]').onchange = function () { liburTahun = this.value; libur(main); };
+    main.querySelector('[data-ladd]').onclick = function () {
+      var b = this;
+      UI.busy(b, async function () {
+        var r = await API.call('saveLibur', { tanggal: main.querySelector('[data-lt]').value, keterangan: main.querySelector('[data-lk]').value, jenis: main.querySelector('[data-lj]').value });
+        if (!r.success) return UI.toast(r.message, 'error');
+        setMaster(r.data.master); liburTahun = main.querySelector('[data-lt]').value.slice(0, 4) || liburTahun; UI.toast(r.message); libur(main);
+      });
+    };
+    UI.$$('[data-del]', main).forEach(function (b) {
+      b.onclick = async function () {
+        var ok = await UI.confirm({ title: 'Hapus hari libur?', message: lkTanggalPanjang(b.dataset.del) + ' akan bisa dipilih untuk akad di Kantor KUA.', ok: 'Hapus', danger: true });
+        if (!ok) return;
+        var r = await API.call('deleteLibur', { tanggal: b.dataset.del });
+        if (!r.success) return UI.toast(r.message, 'error');
+        setMaster(r.data.master); UI.toast(r.message); libur(main);
+      };
+    });
+  }
+
+  return { akun: akun, field: field, template: template, aturan: aturan, libur: libur, editField: editField, describe: describe };
 })();
