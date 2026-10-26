@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.3
+# Panduan Instalasi — KUA-Link v1.4
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -24,22 +24,41 @@ Struktur Google Drive setelah setup:
 
 ---
 
-## Alur Kerja v1.3 (ringkas)
+## Alur Kerja v1.4 (ringkas)
 
-- **Menu desa (tanpa sub-menu):** Dashboard · Pengajuan Nikah · Daftar Pengajuan · Profil Desa. Di HP keempat menu ini ada di **navigasi bawah**.
+- **Menu desa:** Dashboard · Pengajuan Nikah · **Riwayat Pengajuan** · Profil Desa · Panduan Singkat.
+- **HP:** tanpa sidebar. Navigasi bawah: **Dashboard · Riwayat · ⊕ (tombol bulat tengah) · Profil · Panduan**.
+  - Tombol tengah untuk desa = **Pengajuan baru**; untuk Admin KUA = lembar menu **Data Master**.
+- **Akun desa:** 14 akun (`desa.<nama desa>`) dengan password awal yang sama (`kuasawoojaya`), **wajib diganti** saat masuk pertama. Admin mengirim tautan, username, dan password ke modin lewat ikon **WhatsApp** di Data Master → Akun Desa.
+- **Modin** diatur Admin KUA per desa (boleh lebih dari satu). Di formulir: satu modin → terisi otomatis; lebih dari satu → desa memilih.
 - **Desa** mengisi 4 langkah: **Jadwal Akad → Data Calon Suami → Data Calon Istri → Validasi**.
-  - Langkah 2 dibagi tab: **Calon Suami | Ayah | Ibu** (+ **Pemberi Izin** bila perlu).
-  - Langkah 3: **Calon Istri | Ayah | Ibu** (+ **Pemberi Izin**) **| Wali Nikah**.
-  - Bin/Binti **tidak diketik**: otomatis dari nama ayah (tanpa "(Alm)").
-  - **Pekerjaan** dipilih dari 106 jenis pekerjaan KTP-el Dukcapil, dengan kotak cari.
-  - **Cerai mati**: Nomor & Tanggal **Akta Kematian** + **Tanggal Meninggal** (dasar iddah).
-  - **Duda cerai hidup**: pilih **Cerai Talak / Cerai Gugat**.
-- **Masa iddah** dicek otomatis (lihat bagian I).
-- **Simpan & Cetak** → paket PDF lengkap terunduh → **WhatsApp ke nomor KUA terbuka otomatis** (bukti daftar + tautan PDF) → data masuk **Akad Tracker** & **LABUKU Desk** → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
-- Data tetap bisa diedit desa/KUA kapan saja; cetak ulang bila ada perubahan (tautan PDF di KUA ikut diperbarui).
-- Status: **Draf** · **Siap Cetak** · **Batal**. Pembatalan dilakukan langsung dari **Daftar Pengajuan** (menu ☰ → Batalkan); pengajuan berstatus **Batal** tetap tampil di daftar dan bisa diaktifkan kembali.
+  - Langkah 1: Jenis & Pengajuan Untuk; **Kepala Desa | Modin**, lalu **Nomor Surat | Tanggal Surat**; jadwal akad.
+  - Pengajuan baru **baru tercatat sebagai Draf** setelah Jadwal Akad terisi (jenis, pengajuan untuk, tanggal akad).
+  - **Tanggal akad paling cepat sehari sesudah tanggal surat** (tanggal surat dan sebelumnya disilang di kalender).
+  - Langkah 2–3 dibagi tab Calon | Ayah | Ibu (+ Pemberi Izin) (+ Wali Nikah). Bin/binti otomatis dari nama ayah. Pekerjaan dari 106 jenis KTP-el.
+- **Masa iddah** dicek otomatis (Bagian I).
+- **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
+- **Lonceng:** desa = draf yang belum selesai (ketuk untuk melanjutkan) + pemberitahuan KUA; Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
+- Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
+
+## Sudah Memasang v1.3? → Upgrade ke v1.4 (data tetap)
+
+1. **KUA-Link (Apps Script):** ganti isi 9 berkas `.gs` (`appsscript.json` sama dengan v1.3). Simpan.
+2. Pilih fungsi **`upgradeV14`** → **▶ Run**. Fungsi ini:
+   - menambah kolom modin di data desa dan mengisi **modin 14 desa** (desa yang sudah punya daftar modin tidak ditimpa);
+   - menambah field **Nama Modin** di langkah Jadwal Akad;
+   - **semua akun desa** dibuat aktif, password dikembalikan ke `kuasawoojaya`, dan wajib diganti saat masuk. Desa yang belum punya akun dibuatkan (`desa.<nama>`). Sesi lama dikeluarkan;
+   - mengganti trigger kirim ulang 30 menit dengan mekanisme **5 menit** (dibuat otomatis hanya saat ada kiriman gagal).
+3. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**.
+4. **Frontend:** salin dulu `GAS_URL` dari `js/config.js` → ekstrak ZIP v1.4 (timpa) → tempel kembali `GAS_URL` → `git add .` → `git commit -m "KUA-Link v1.4"` → `git push`.
+5. **Akad Tracker:** ganti isi berkas `KUALink` dengan versi baru (`integrasi/akad-tracker/KUALink.gs`) → Deploy versi baru. `Code.gs` & frontend tidak berubah dari v2.3.
+6. **LABUKU Desk:** ganti isi `KUALink` dan `Kode.gs` (2 baris baru, Bagian K2) → Deploy versi baru.
+7. **Kirim akun ke modin:** Data Master → Akun Desa & Modin → ikon **WhatsApp** di setiap modin.
+8. **PWA:** perangkat yang memasang KUA-Link sebagai "update" SAKU — hapus ikon KUA-Link lama bila ada, buka KUA-Link di browser, lalu **Pasang Aplikasi** lagi (Bagian E).
 
 ## Sudah Memasang v1.2? → Upgrade TANPA instal ulang (data tetap)
+
+> Dari v1.2: kerjakan langkah di bawah (upgradeV13), **lalu** langsung jalankan **`upgradeV14`** sebelum deploy, dan pakai ZIP frontend v1.4.
 
 1. Di proyek Apps Script yang **sama**:
    - Ganti isi semua berkas `.gs` **dan `appsscript.json`** dengan versi v1.3. `appsscript.json` wajib diganti: ada izin baru `script.external_request` untuk mengirim data ke Akad Tracker & LABUKU Desk; tanpa itu kiriman gagal.
@@ -48,11 +67,10 @@ Struktur Google Drive setelah setup:
    Fungsi ini:
    - membuat sheet **Integrasi** dan pengaturan baru di **AppConfig**;
    - mengganti field sistem ke versi v1.3 (field buatan Admin tidak disentuh);
-   - menambah template **CONTOH** + aturan **Surat Pernyataan Tidak Akan Merujuk Mantan Istri** (syibhul iddah);
-   - memasang trigger **`kirimUlangIntegrasi`** (tiap 30 menit, mengirim ulang kiriman yang gagal).
+   - menambah template **CONTOH** + aturan **Surat Pernyataan Tidak Akan Merujuk Mantan Istri** (syibhul iddah).
 3. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy** (URL `/exec` tetap).
 4. **Template N6 milik Anda:** penanda `{{catin_kematian_tempat}}` dan `{{catin_dok_jenis}}` tidak dipakai lagi. Pakai `{{catin_kematian_tanggal}}`, `{{catin_dok_nomor}}`, `{{catin_dok_tanggal}}` (Tanggal Meninggal, Nomor/Tanggal Akta Kematian), lalu daftarkan ulang di **Template Surat**.
-5. Frontend: salin dulu `GAS_URL` dari `js/config.js` lama → ekstrak ZIP v1.3 (timpa) → tempel kembali `GAS_URL` → `git add .` → `git commit -m "KUA-Link v1.3"` → `git push`.
+5. Frontend: salin dulu `GAS_URL` dari `js/config.js` lama → ekstrak ZIP v1.4 (timpa) → tempel kembali `GAS_URL` → `git add .` → `git commit -m "KUA-Link v1.4"` → `git push`.
 6. Pasang penerima di **Akad Tracker** & **LABUKU Desk** dan catat **kunci** masing-masing (Bagian K).
 7. Login Admin KUA-Link → **Data Master → Integrasi & WhatsApp** → isi nomor WhatsApp KUA, **URL /exec** dan **Kunci** kedua aplikasi → **Simpan** → **Uji Koneksi** untuk keduanya (Bagian J).
 
@@ -62,8 +80,8 @@ Ikuti Bagian A dari awal. Bila ingin membuang database lama sepenuhnya (instal u
 1. Di Google Drive, hapus (pindahkan ke Sampah) folder database lama — `📁 LABUKU Link` dan/atau `Database by Ahzani Labs / KUA-Link`. **Jangan** hapus folder induk `Database by Ahzani Labs` bila berisi aplikasi lain.
 2. Ganti isi **9 berkas** di proyek Apps Script dengan versi ini, lalu lanjutkan dari **langkah A4**. Setup otomatis membersihkan pengaturan lama karena database lamanya sudah dihapus.
 3. Pada **langkah A8**, jangan buat deployment baru. Pakai **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**, supaya URL `/exec` tetap sama dan `GAS_URL` di GitHub tidak perlu diubah.
-4. Semua akun lama ikut hilang bersama database lama. Akun desa dibuat ulang oleh Admin (Bagian D).
-5. Frontend di GitHub: **salin dulu `GAS_URL`** dari `js/config.js` lama → ekstrak ZIP baru ke folder repo (timpa) → tempel kembali `GAS_URL` di `js/config.js` → `git add .` → `git commit -m "KUA-Link v1.3"` → `git push`.
+4. Semua akun lama ikut hilang bersama database lama. Setup membuat ulang 14 akun desa (password awal `kuasawoojaya`) — kirim ke modin lewat Bagian D.
+5. Frontend di GitHub: **salin dulu `GAS_URL`** dari `js/config.js` lama → ekstrak ZIP baru ke folder repo (timpa) → tempel kembali `GAS_URL` di `js/config.js` → `git add .` → `git commit -m "KUA-Link v1.4"` → `git push`.
 
 ---
 
@@ -85,7 +103,7 @@ Gunakan akun Google yang sama dengan pemilik folder **Database by Ahzani Labs** 
    | `Master` | akun, field, aturan |
    | `Laporan` | riwayat & arsip |
    | `Integrasi` | paket PDF, WhatsApp KUA, Akad Tracker & LABUKU Desk |
-   | `Setup` | instalasi pertama & `upgradeV13` |
+   | `Setup` | instalasi pertama, `upgradeV13` & `upgradeV14` |
 
    > Berkas di folder `integrasi/` **bukan** untuk proyek ini — itu untuk proyek Akad Tracker & LABUKU Desk (Bagian K).
 
@@ -138,6 +156,7 @@ Cara ini membuat URL `/exec` tetap sama. Jangan pakai "New deployment", karena a
 | Fungsi | Kegunaan |
 |---|---|
 | `upgradeV13` | Upgrade database v1.2 → v1.3 tanpa instal ulang. Aman dijalankan ulang. |
+| `upgradeV14` | Upgrade v1.3 → v1.4: modin per desa, field Nama Modin, semua akun desa kembali ke password awal (wajib ganti). Jalankan ulang = semua akun desa direset lagi. |
 | `resetSetupGagal` | Membersihkan sisa setup yang gagal (lihat di atas). |
 | `resetPasswordAdminDarurat` | Admin lupa password. Password sementara baru tampil di Execution log (hanya terlihat oleh pemilik proyek). |
 | `bersihkanCache` | Setelah mengedit sheet secara manual. |
@@ -210,13 +229,14 @@ Bila password telanjur ter-push: **ganti password akun itu segera** (Profil → 
 ## D. Langkah Pertama Setelah Online
 
 1. **Masuk sebagai Admin KUA**: username `admin.kua` + password dari Execution log (langkah A7). Aplikasi langsung meminta Anda **membuat password baru** — pakai password yang hanya Anda ketahui.
-2. **Data Master → Akun Desa → ☰ (baris desa) → Buat Akun Desa**:
-   - Username sudah terisi otomatis (mis. `desa.sawoo`).
-   - Ketik **Password Awal** untuk desa itu, minimal 8 karakter, berisi huruf + angka. **Bedakan setiap desa.**
-   - Ulangi untuk 14 desa.
-   - **Nama Kepala Desa diisi oleh operator desa** (Profil Desa, atau langsung di formulir pengajuan — keduanya saling terhubung).
-3. Sampaikan username + password awal ke masing-masing operator desa. Mereka **wajib mengganti** password saat login pertama.
-4. Operator lupa password: **☰ → Reset Password**. Ketik password awal baru; sesi lama operator otomatis dikeluarkan dan ia wajib mengganti password lagi.
+2. **Data Master → Akun Desa & Modin**:
+   - 14 akun desa sudah dibuat setup: username `desa.<nama desa>` (mis. `desa.sawoo`), password awal **`kuasawoojaya`** (diatur di `SETUP_.PASSWORD_DESA_AWAL` / sheet `AppConfig` → `PASSWORD_DESA_AWAL`). Pemilik akun **wajib mengganti** saat masuk pertama.
+   - Kolom **Modin & WhatsApp** berisi modin tiap desa beserta nomor WA. Ubah/tambah lewat **☰ → Edit Desa & Modin** (boleh lebih dari satu modin per desa).
+   - **Nama Kepala Desa diisi operator desa** (Profil Desa, atau langsung di formulir — keduanya terhubung).
+3. Tekan ikon **WhatsApp** di samping nama modin → WhatsApp terbuka berisi tautan KUA-Link, username, dan password awal → tekan **Kirim**.
+   - Bila akun desa itu sudah memakai password sendiri, muncul pilihan **Reset & Kirim** (password kembali ke password awal) atau **Kirim tanpa password**.
+4. Operator lupa password: **☰ → Reset Password** → password kembali ke `kuasawoojaya`, sesi lama dikeluarkan, dan wajib diganti lagi. Kirim ulang lewat ikon WhatsApp.
+   - Risiko yang perlu diketahui: password awal sama untuk semua desa dan username mudah ditebak. Selama sebuah akun **belum** mengganti password, akun itu bisa dimasuki desa lain. Pastikan setiap desa segera masuk & mengganti password (status **Password Awal** di daftar akun hilang setelah diganti).
 5. **Data Master → Template Surat** — wajib sebelum dipakai resmi:
    - Template bawaan bertanda **[CONTOH]**, bukan format resmi.
    - Buat ulang setiap surat sesuai format resmi yang berlaku di Google Docs, di folder `01_Template_Sumber`.
@@ -246,7 +266,13 @@ KUA-Link bisa dipasang seperti aplikasi: punya ikon sendiri, terbuka di jendela 
 | **iPhone/iPad** | Buka di **Safari** → tombol **Bagikan** → **Tambah ke Layar Utama** → **Tambah**. Tombol *Pasang Aplikasi* menampilkan langkah ini. |
 | **Mac — Safari 17+** | Menu **File → Add to Dock**. |
 
-Tombol *Pasang Aplikasi* tidak muncul bila aplikasi sudah terpasang, atau bila browser tidak mendukung pemasangan (mis. Firefox desktop).
+Tombol *Pasang Aplikasi* tidak muncul bila aplikasi sudah terpasang, atau bila browser tidak mendukung pemasangan (mis. Firefox desktop). Di HP: menu akun (kanan atas) → **Pasang Aplikasi**.
+
+**KUA-Link & SAKU di alamat github.io yang sama (v1.4).** Sebelumnya KUA-Link memakai `"id": "./"`. Chrome menghitung `id` dari *origin*, jadi nilainya menjadi `/` — sama dengan `id` SAKU — sehingga di desktop KUA-Link dianggap **update SAKU**. Sejak v1.4 `id` KUA-Link = `/kua-link/` (unik). Setelah push:
+1. Di komputer yang bermasalah, buka SAKU sekali agar manifest SAKU dimuat ulang (nama & ikon SAKU kembali).
+2. Hapus pemasangan KUA-Link lama bila ada (chrome://apps → klik kanan → Hapus).
+3. Buka KUA-Link di tab browser biasa → **Pasang Aplikasi**.
+4. Buka KUA-Link dari **ikonnya sendiri**. Bila dibuka dari dalam jendela SAKU, Chrome dapat menampilkannya di bingkai SAKU karena cakupan SAKU (`/`) meliputi semua alamat di github.io tersebut.
 
 ---
 
@@ -277,13 +303,20 @@ Tombol *Pasang Aplikasi* tidak muncul bila aplikasi sudah terpasang, atau bila b
 | Peringatan "pendaftaran terlambat" | Kurang dari 10 hari kerja antara tanggal surat dan tanggal akad: siapkan surat dispensasi pendaftaran nikah dari Kecamatan. |
 | Tombol "Berikutnya" tidak lanjut | Masih ada isian wajib (bertanda merah) di tab yang sedang dibuka. Lengkapi lalu tekan lagi. Tab yang masih kurang diberi titik oranye. |
 | Tanggal akad disilang / "masih dalam masa iddah" | Calon istri janda: surat desa paling cepat 1 hari dan akad paling cepat 2 hari **sesudah** iddah selesai (Bagian I). Di langkah 1 tekan tombol hijau **Pakai tanggal …** untuk memperbaiki sekali ketuk. |
-| Pendaftaran tidak muncul di Akad Tracker / LABUKU Desk | Lihat status di Daftar Pengajuan → ☰ → **Kirim ke KUA**. `GAGAL` dikirim ulang otomatis tiap 30 menit. Pastikan `KUALink.gs` terpasang, baris tambahan di `Code.gs`/`Kode.gs` sudah ada, dan **deployment versi baru** sudah dibuat (Bagian K). Muat ulang dashboard aplikasi tujuan. |
-| WhatsApp tidak terbuka otomatis | Browser memblokir pop-up. Tekan tombol hijau **Kirim WhatsApp ke KUA** di halaman sukses, atau dari Daftar Pengajuan → ☰ → **Kirim ke KUA**. |
+| Pendaftaran tidak muncul di Akad Tracker / LABUKU Desk | Lihat lonceng Admin KUA, atau Riwayat Pengajuan → ☰ → **Kirim ke KUA**. `GAGAL` dikirim ulang otomatis tiap 5 menit. Pastikan `KUALink.gs` terpasang, baris tambahan di `Code.gs`/`Kode.gs` sudah ada, dan **deployment versi baru** sudah dibuat (Bagian K). Muat ulang dashboard aplikasi tujuan. |
+| WhatsApp tidak terbuka otomatis | Browser memblokir pop-up. Tekan tombol hijau **Kirim WhatsApp ke KUA** di halaman sukses, atau dari Riwayat Pengajuan → ☰ → **Kirim ke KUA**. |
 | WhatsApp terbuka tanpa nomor KUA | Nomor belum diisi Admin: Data Master → Integrasi & WhatsApp. |
+| "Izin yang ditentukan tidak cukup untuk memanggil UrlFetchApp.fetch … script.external_request" | Masalahnya di proyek **KUA-Link**, bukan di aplikasi tujuan. (1) ⚙️ Project Settings → centang *Show "appsscript.json"* → pastikan baris `script.external_request` ada → Simpan. (2) Pilih fungsi `bersihkanCache` → ▶ Run → **Allow** (izin "Connect to an external service"). (3) Deploy → Manage deployments → Edit → **New version** → Deploy. (4) Uji Koneksi lagi. Jangan menjalankan ulang `upgradeV13` hanya untuk izin: fungsi itu menulis ulang field sistem. |
+| Desa lupa password | Admin: Data Master → Akun Desa → ☰ → **Reset Password** (kembali ke password awal), lalu kirim ulang lewat ikon WhatsApp modin. |
+| Kolom Modin di formulir kosong / "Belum ada modin" | Admin belum mengisi modin desa itu: ☰ → **Edit Desa & Modin**. |
+| Tombol Simpan Draf: "Lengkapi Jadwal Akad dulu" | Pengajuan baru tercatat setelah Jenis, Pengajuan Untuk, dan Tanggal Akad terisi. Isian sebelumnya aman di perangkat. |
+| Tanggal akad disilang padahal hari kerja | Tanggal itu sama dengan/sebelum **tanggal surat**. Akad paling cepat sehari sesudahnya. |
+| Desktop: KUA-Link muncul sebagai "App update available" SAKU | Frontend v1.3 masih terpasang (id manifest sama dengan SAKU). Push frontend v1.4, lalu ikuti Bagian E. |
+| Antrean KL-… tidak tampil di Front Office LABUKU Desk | `Kode.gs` LABUKU belum berisi 2 baris `kualinkGeserAntrean_` (Bagian K2) atau belum Deploy versi baru. |
 | "Kunci KUA-Link salah" / "belum dibuat" | Kunci di KUA-Link tidak sama dengan Script Properties `KUALINK_KEY` aplikasi tujuan. Jalankan ulang `aturKunciKUALink` di aplikasi tujuan, salin kunci dari Execution log, tempel di KUA-Link, Simpan, Uji Koneksi. Setelah 5× salah, tunggu 5 menit. |
 | "URL bukan API /exec yang benar" | URL yang ditempel salah (mis. URL editor, URL GitHub Pages, atau `/dev`), atau deployment belum versi baru sehingga fungsi `kualinkMasuk` belum dikenal. Pakai URL `/exec` yang sama dengan `GAS_URL` di `js/config.js` aplikasi itu. |
 | "Fungsi API tidak dikenal: kualinkMasuk" / "Fungsi tidak dikenal" | Baris tambahan di `Code.gs` (Akad Tracker) / `Kode.gs` (LABUKU Desk) belum ada, atau belum **Deploy → New version**. |
-| "Akad Tracker/LABUKU Desk: Gagal …" lainnya | Kegagalan integrasi tidak menggagalkan cetak. Perbaiki penyebabnya, lalu tunggu trigger 30 menit atau kirim ulang lewat ☰ → Kirim ke KUA. |
+| "Akad Tracker/LABUKU Desk: Gagal …" lainnya | Kegagalan integrasi tidak menggagalkan cetak dan muncul di lonceng Admin KUA. Perbaiki penyebabnya; kiriman diulang otomatis tiap 5 menit, atau kirim ulang lewat ☰ → Kirim ke KUA. |
 | "Belum disambungkan" di daftar tujuan | Integrasi belum diatur (Bagian J). Pengajuan tetap tersimpan & tercetak normal. |
 
 ---
@@ -334,13 +367,13 @@ Batasan yang **belum** ditangani sistem (periksa manual oleh KUA):
 
 ---
 
-## J. Integrasi: WhatsApp KUA, Akad Tracker, LABUKU Desk (v1.3)
+## J. Integrasi: WhatsApp KUA, Akad Tracker, LABUKU Desk (v1.4)
 
 Setelah desa menekan **Simpan & Cetak** dan surat selesai dibuat, sistem menjalankan urutan ini otomatis:
 1. Paket PDF lengkap diunduh ke perangkat desa.
 2. Salinan PDF disimpan di Drive (`03_Dokumen/<tahun>/<desa>/<nomor>/Paket_<nomor>.pdf`) → tautan.
 3. Backend KUA-Link **langsung mengirim** data ke API `/exec` aplikasi tujuan (real-time, tanpa menunggu):
-   - **Nikah di wilayah** → **Akad Tracker** (jadwal akad) + **LABUKU Desk** (*Pendaftaran Kehendak Nikah*).
+   - **Nikah di wilayah** → **Akad Tracker** (jadwal akad, lengkap dengan **nama modin**) + **LABUKU Desk** (*Pendaftaran Kehendak Nikah*).
    - **Luar wilayah** → **LABUKU Desk** saja (*Penerbitan Surat Rekomendasi Nikah*).
 4. **WhatsApp** terbuka ke nomor KUA dengan pesan bukti daftar + tautan PDF. Desa tinggal menekan **Kirim**.
 
@@ -348,9 +381,9 @@ Pengiriman juga terjadi pada keadaan berikut:
 - **Data diubah lalu dicetak ulang** → data di aplikasi tujuan diperbarui (tidak membuat data dobel).
 - **Dibatalkan** → status `BATAL` dikirim; **diaktifkan kembali** → `TERDAFTAR` dikirim.
 - **Jenis diubah** (mis. Nikah di Wilayah → Rekomendasi) → jadwal di Akad Tracker dibatalkan otomatis. Layanan di LABUKU Desk berganti ke *Penerbitan Surat Rekomendasi Nikah*.
-- **Aplikasi tujuan sedang gangguan** → status `GAGAL`. Cetak tetap berhasil, dan trigger **`kirimUlangIntegrasi`** mengirim ulang tiap 30 menit (maks. 20 pengajuan per putaran).
+- **Aplikasi tujuan sedang gangguan** → status `GAGAL`. Cetak tetap berhasil. Trigger **`kirimUlangIntegrasi`** dibuat otomatis dan mengirim ulang **tiap 5 menit** (maks. 20 pengajuan per putaran); setelah semua berhasil, trigger **menghapus dirinya sendiri**.
 
-Status tiap tujuan terlihat di Daftar Pengajuan → ☰ → **Kirim ke KUA**: `TERKIRIM`, `GAGAL` (dengan pesan), atau `BELUM_DIATUR`.
+Hasil setiap kiriman masuk **lonceng Admin KUA** (✅ berhasil / ⚠️ gagal + pesan). Kirim ulang otomatis hanya menambah notifikasi bila hasilnya berubah (mis. akhirnya berhasil). Status per pengajuan juga terlihat di Riwayat Pengajuan → ☰ → **Kirim ke KUA**.
 
 ### Cara menyambungkan (Data Master → Integrasi & WhatsApp)
 
@@ -379,8 +412,8 @@ Berkas ada di folder `integrasi/` paket ini. Dasarnya kode **Akad Tracker v2.2**
 
 | Aplikasi | Berkas baru | Berkas lama yang diubah | Frontend |
 |---|---|---|---|
-| Akad Tracker | `KUALink.gs` | `Code.gs` — 3 tempat | `js/app.js` (badge & berkas desa) |
-| LABUKU Desk | `KUALink.gs` | `Kode.gs` — 1 baris di `doPost` | tidak berubah |
+| Akad Tracker | `KUALink.gs` (v1.4: + modin) | `Code.gs` — 3 tempat | `js/app.js` (badge & berkas desa) |
+| LABUKU Desk | `KUALink.gs` (v1.4: antrean biasa) | `Kode.gs` — 1 baris di `doPost` + 2 baris antrean | tidak berubah |
 
 > Bila `Code.gs`/`Kode.gs` di proyek Anda sudah **lebih baru** dari v2.2/v6.12, jangan timpa seluruhnya. Tambahkan perubahan kecil di bawah ini secara manual.
 
@@ -415,8 +448,9 @@ Hasil di Akad Tracker:
   - nama catin ditulis KAPITAL (aturan bawaan Akad Tracker);
   - **wali** Nasab/Hakim dan **tempat** Kantor/Luar Kantor terisi;
   - keterangan memuat alamat akad (bila di luar kantor), nama wali, dan asal desa;
+  - **modin** (v1.4) dicocokkan dengan **Master Modin** Akad Tracker: lewat nomor WA, lalu nama (sapaan "Pak/Bapak/Ibu" diabaikan). Bila belum terdaftar, kolom modin dibiarkan kosong dan keterangan berisi *"Modin: … — belum ada di Master Modin"*. Tambahkan modin itu di Akad Tracker agar Rekap Modin berjalan;
   - detail jadwal memuat baris **Berkas Desa → Buka PDF paket surat desa**.
-- Desa mencetak ulang tanpa mengubah data → hanya tautan PDF yang diperbarui. Field ditimpa **hanya bila desa mengubah nilainya**. Penghulu, modin, jam, atau catatan yang diubah tim KUA tetap.
+- Desa mencetak ulang tanpa mengubah data → hanya tautan PDF yang diperbarui. Field ditimpa **hanya bila desa mengubah nilainya**. Penghulu, modin, jam, atau catatan yang diubah tim KUA tetap. Modin kosong/tidak dikenal dari desa tidak menghapus modin yang dipilih tim KUA.
 - Desa membatalkan → **BATAL** (tanda *perlu dicek*); diaktifkan kembali → **TERJADWAL**. Jadwal yang dibatalkan **tim KUA sendiri** tidak dihidupkan lagi oleh KUA-Link.
 - Bila nama/tanggal cocok dengan jadwal lain, jadwal ditandai *kemungkinan duplikat* (fitur bawaan).
 - Semua perubahan tercatat di Riwayat dengan pelaku `KUA-Link`.
@@ -425,36 +459,47 @@ Hasil di Akad Tracker:
 
 **Backend saja** (frontend tidak berubah):
 1. **+ → Script** → nama `KUALink` → tempel isi `integrasi/labuku-desk/KUALink.gs` → Simpan.
-2. Ganti seluruh isi `Kode.gs` dengan `integrasi/labuku-desk/Kode.gs`. **Atau** tambah satu baris di daftar `PUBLIK` dalam `function doPost(e)`:
+2. Ganti seluruh isi `Kode.gs` dengan `integrasi/labuku-desk/Kode.gs`. **Atau** ubah manual 3 baris:
    ```js
          getFormData: function () { return JSON.parse(buildPublicFormJson_()); },
-         kualinkMasuk: kualinkMasuk   // ← baris baru (jangan lupa koma di baris sebelumnya)
+         kualinkMasuk: kualinkMasuk   // ← di daftar PUBLIK dalam function doPost(e) (koma di baris sebelumnya)
    ```
-3. Jalankan **`aturKunciKUALink`** → salin kunci `LBD-…` dari Execution log.
+   ```js
+   function getFrontOfficeRows_(ss, range) {
+     ensureSchema_();
+     kualinkGeserAntrean_(ss);   // ← baris baru
+   ```
+   ```js
+       const mon = monitorConfig_(config);
+       kualinkGeserAntrean_(ss);   // ← baris baru (di getMonitorData_)
+   ```
+3. Jalankan **`aturKunciKUALink`** → salin kunci `LBD-…` dari Execution log (cukup sekali; kunci lama tetap berlaku saat upgrade).
 4. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**.
 
-Hasil di LABUKU Desk:
-- Layanan baru (ID `LYN-…`) berstatus **Pending**:
+Hasil di LABUKU Desk (v1.4 — **masuk biasa, bukan Pending**):
+- Layanan baru (ID `LYN-…`) berstatus **Antre** + antrean **`KL-001`, `KL-002`, …** (Sumber *Online*) di **Front Office**:
   - jenis **Pendaftaran Kehendak Nikah** (nikah di wilayah) atau **Penerbitan Surat Rekomendasi Nikah** (luar wilayah);
-  - **pemohon** = catin warga desa pengaju: calon istri, atau calon suami bila pengajuan hanya untuk suami. Pemohon dicocokkan dengan NIK, dan pemohon lama dipakai ulang;
-  - wilayah diisi dari data wilayah resmi bila nama desa/kecamatan cocok;
-  - **catatan pending** berisi desa, nomor KUA-Link, jadwal akad, dan keterangan "menunggu catin datang";
-  - checklist persyaratan dibuat dari Katalog Layanan;
-  - PDF paket desa masuk ke **Dokumen** (kategori *Berkas Desa (KUA-Link)*);
-  - sheet **`KUALink`** dibuat otomatis untuk memetakan nomor KUA-Link ↔ ID layanan. Jangan diedit.
-- **Saat catin datang:** Front Office → **Tambah Antrean** → ketik NIK catin → pop-up *layanan pending* muncul → pilih **layanan yang sama** → layanan KUA-Link **digabung** (fitur v6.4). Checklist, catatan, dan keterangan ikut, lalu layanan lama menjadi *Dilanjutkan*. Kiriman KUA-Link berikutnya (mis. cetak ulang) otomatis menautkan PDF terbaru ke layanan lanjutan. Status layanan yang sedang diproses petugas **tidak diubah**.
-- Desa membatalkan → **Ditolak** (catatan: dibatalkan desa); diaktifkan kembali → **Pending**. Layanan berstatus *Selesai* tidak diubah.
+  - **pemohon** = catin warga desa pengaju (calon istri; calon suami bila pengajuan hanya untuk suami), dicocokkan dengan NIK;
+  - **keterangan** berisi nomor KUA-Link, desa, catin, jadwal akad, dan modin;
+  - checklist persyaratan dari Katalog Layanan; PDF paket desa masuk **Dokumen** (kategori *Berkas Desa (KUA-Link)*);
+  - sheet **`KUALink`** memetakan nomor KUA-Link ↔ layanan ↔ antrean. Jangan diedit.
+- **Saat berkas datang:** di Front Office cari baris **KL-…** → **Panggil → Verifikasi → Lengkap** (alur biasa). Jangan *Tambah Antrean* lagi untuk catin yang sama.
+- **Berkas belum datang hari itu:** antrean KL-… yang belum dipanggil **dibawa ke hari berikutnya** secara otomatis saat Front Office/Monitor pertama dibuka. Antrean kemarin ditandai *Terlewat*, dan antrean baru dengan nomor sama dibuat untuk hari ini.
+- Kiriman berikutnya (cetak ulang) memperbarui keterangan & PDF. Layanan yang sudah **Diproses/Selesai** tidak diubah statusnya.
+- Desa membatalkan → **Ditolak** (antrean ditutup); diaktifkan kembali → **Antre** + antrean baru hari itu (nomor sama).
+- Data kiriman versi lama yang masih **Pending** tetap diperlakukan seperti sebelumnya.
 
 > Nama layanan di **Katalog Layanan** LABUKU Desk harus persis `Pendaftaran Kehendak Nikah` dan `Penerbitan Surat Rekomendasi Nikah`. Bila berbeda, layanan tetap dibuat dengan nama itu, tetapi tanpa checklist dan tanpa tautan katalog. Ubah nama katalog, atau ubah pemetaan `KUALINK_KATALOG` di `KUALink.gs`.
 
 ### K3. Urutan deploy yang aman
 1. Akad Tracker: K1 langkah 1–5 (backend) → catat kunci.
 2. LABUKU Desk: K2 langkah 1–4 → catat kunci.
-3. KUA-Link: upgrade/deploy v1.3 → Data Master → Integrasi & WhatsApp → isi URL + kunci → **Uji Koneksi** keduanya.
-4. Uji satu pengajuan contoh: Simpan & Cetak → cek jadwal di Akad Tracker dan layanan Pending di LABUKU Desk → batalkan dari Daftar Pengajuan → pastikan berubah BATAL/Ditolak.
+3. KUA-Link: upgrade/deploy v1.4 → Data Master → Integrasi & WhatsApp → isi URL + kunci → **Uji Koneksi** keduanya.
+4. Uji satu pengajuan contoh: Simpan & Cetak → cek jadwal (dengan modin) di Akad Tracker dan antrean KL-… di Front Office LABUKU Desk → batalkan dari Riwayat Pengajuan → pastikan berubah BATAL/Ditolak → cek lonceng Admin KUA.
 5. Akad Tracker frontend (K1 langkah 6–7). Langkah ini boleh kapan saja, karena backend tetap berjalan tanpa frontend baru.
 
 ### Kecepatan & kuota
 - Tiap kiriman = 1 panggilan `UrlFetchApp` per tujuan (±1–3 detik), dijalankan **setelah** PDF tersimpan. Jendela WhatsApp tetap terbuka walau tujuan lambat.
-- Tidak ada trigger di Akad Tracker/LABUKU Desk. Satu-satunya trigger baru adalah `kirimUlangIntegrasi` di KUA-Link (30 menit), dan trigger itu langsung berhenti bila tidak ada yang gagal.
+- Tidak ada trigger di Akad Tracker/LABUKU Desk. Satu-satunya trigger integrasi adalah `kirimUlangIntegrasi` di KUA-Link: tiap 5 menit, **hanya ada selama masih ada kiriman gagal**.
+- Pemindahan antrean KL-… di LABUKU Desk berjalan sekali per hari (dicatat di cache), jadi tidak memperlambat Front Office.
 - Kuota `UrlFetchApp` akun Google gratis: 20.000 panggilan/hari, jauh di atas kebutuhan 14 desa.

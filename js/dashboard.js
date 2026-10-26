@@ -97,9 +97,9 @@ var Dashboard = (function () {
 
     main.innerHTML = App.pageHead('Beranda / ' + (kua ? App.kuaName() : 'Desa ' + (S.desa ? S.desa.nama_desa : '')), kua ? 'Dashboard KUA' : 'Dashboard Desa', per) +
       '<div class="stack">' +
-      (!kua ? '<div class="hero"><div><div class="hero-t">Pengajuan surat nikah lebih cepat</div><div class="hero-s">Isi 4 langkah → Simpan &amp; Cetak → tanda tangan Kepala Desa → bawa ke KUA.</div></div>' +
+      (!kua ? '<div class="hero"><div><div class="hero-t">Pengajuan nikah</div><div class="hero-s">Isi 4 langkah → Simpan &amp; Cetak → bawa ke KUA.</div></div>' +
         '<a class="btn btn-gold" href="#/form/new" style="height:46px">' + icon('plus') + 'Pengajuan Baru</a></div>' : '') +
-      (!kua && draf ? '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>' + draf + ' pengajuan masih draf</b> (belum lengkap). Lanjutkan mengisi agar bisa dicetak.</div><a href="#/pengajuan?status=DRAF">Lihat Draf →</a></div>' : '') +
+      (!kua && draf ? '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>' + draf + ' draf</b> belum selesai.</div><a href="#/pengajuan?status=DRAF">Lanjutkan →</a></div>' : '') +
       filterCard(kua) +
       '<div class="grid g4">' +
       stat('Total Pengajuan', aktif.length, per + (F.desa ? ' · ' + App.desaName(F.desa) : ''), 'file', 'green', '#/pengajuan') +

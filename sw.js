@@ -7,7 +7,7 @@
  * - Permintaan ke Apps Script (data) TIDAK PERNAH disentuh/di-cache di sini.
  * Naikkan VERSION hanya bila menambah/menghapus file di daftar SHELL_FILES.
  * ===================================================================== */
-var VERSION = 'v1.3';
+var VERSION = 'v1.4';
 var SHELL = 'kualink-shell-' + VERSION;
 var RUNTIME = 'kualink-runtime-v1';
 var SHELL_FILES = [

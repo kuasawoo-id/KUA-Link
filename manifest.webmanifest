@@ -2,7 +2,7 @@
   "name": "KUA-Link — Surat Pengantar Nikah",
   "short_name": "KUA-Link",
   "description": "Administrasi surat pengantar nikah Desa – KUA Sawoo. by Ahzani Labs",
-  "id": "./",
+  "id": "/kua-link/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

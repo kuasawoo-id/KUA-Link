@@ -66,41 +66,53 @@ var Master = (function () {
   /* =================================================================
    * AKUN DESA
    * ================================================================= */
+  var pwAwal = '';
   async function akun(main, params, soft) {
     if (!users || !soft) {
-      main.innerHTML = head('AKUN DESA', 'Data Master') + '<div class="card"><table class="tbl"><tbody>' + UI.skeletonRows(6, 6) + '</tbody></table></div>';
+      main.innerHTML = head('AKUN DESA & MODIN', 'Data Master') + '<div class="card"><table class="tbl"><tbody>' + UI.skeletonRows(6, 6) + '</tbody></table></div>';
       var r = await API.call('listUsers');
       if (location.hash.indexOf('#/master/akun') !== 0) return; // pengguna sudah pindah halaman
-      if (!r.success) { main.innerHTML = head('AKUN DESA', 'Data Master') + '<div class="banner danger">' + icon('xCircle') + '<div class="txt">' + esc(r.message) + '</div></div>'; return; }
-      users = r.data;
+      if (!r.success) { main.innerHTML = head('AKUN DESA & MODIN', 'Data Master') + '<div class="banner danger">' + icon('xCircle') + '<div class="txt">' + esc(r.message) + '</div></div>'; return; }
+      users = r.data.users || r.data;
+      pwAwal = r.data.pw_awal || '';
     }
     drawAkun(main);
   }
 
+  function desaUsers(id) { return (users || []).filter(function (u) { return u.peran === 'OPERATOR_DESA' && u.desa_id === id; }); }
+
   function drawAkun(main) {
-    var desaUsers = function (id) { return users.filter(function (u) { return u.peran === 'OPERATOR_DESA' && u.desa_id === id; }); };
     var kuaUsers = users.filter(function (u) { return u.peran !== 'OPERATOR_DESA'; });
     var statusPill = function (u) {
       if (!u) return '<span class="pill s-DIKEMBALIKAN">Belum Ada Akun</span>';
       if (!u.aktif) return '<span class="pill s-NEUTRAL">Nonaktif</span>';
       if (u.terkunci) return '<span class="pill s-DIBATALKAN">Terkunci</span>';
-      if (u.wajib_ganti_pw) return '<span class="pill s-CETAK">Belum Ganti Password</span>';
+      if (u.wajib_ganti_pw) return '<span class="pill s-CETAK">Password Awal</span>';
       return '<span class="pill s-TERKUNCI">Aktif</span>';
     };
-    main.innerHTML = head('AKUN DESA', 'Data Master') +
+    var modinCell = function (d) {
+      var ml = lkModinList(d);
+      if (!ml.length) return '<button class="btn btn-sm" data-editdesa="' + esc(d.desa_id) + '">' + icon('plus', 14) + 'Atur Modin</button>';
+      return '<div class="modin-list">' + ml.map(function (x, i) {
+        return '<div class="modin-row"><div class="mn"><b>' + esc(x.nama) + '</b><span class="mono">' + esc(x.wa || 'tanpa nomor WA') + '</span></div>' +
+          '<button class="btn btn-wa btn-icon" data-wa="' + esc(d.desa_id) + '" data-wi="' + i + '" title="Kirim akun KUA-Link ke WhatsApp ' + esc(x.nama) + '" aria-label="WhatsApp ' + esc(x.nama) + '"' + (x.wa ? '' : ' disabled') + '>' + icon('chat', 18) + '</button></div>';
+      }).join('') + '</div>';
+    };
+    main.innerHTML = head('AKUN DESA & MODIN', 'Data Master') +
       '<div class="stack"><div class="row"><button class="btn btn-primary" data-newdesa>' + icon('plus') + 'Tambah Desa</button><button class="btn" data-newuser>' + icon('userPlus') + 'Tambah Akun</button>' +
       '<span class="muted" style="margin-left:auto">' + S.master.desa.length + ' desa · ' + users.length + ' akun</span></div>' +
-      '<div class="card"><div class="card-head"><h2>Desa &amp; Akun Operator</h2><span class="sub">Satu akun per desa dapat dipakai bersama di beberapa perangkat</span></div><div class="table-wrap"><table class="tbl cards"><thead><tr>' +
-      '<th class="c" style="width:52px">No</th><th class="c" style="width:64px">Action</th><th>Desa</th><th>Username</th><th>Kepala Desa</th><th>Login Terakhir</th><th class="c">Status</th></tr></thead><tbody>' +
+      '<div class="card"><div class="card-head"><h2>Desa, Akun &amp; Modin</h2>' + (pwAwal ? '<span class="sub">Password awal desa: <b class="mono">' + esc(pwAwal) + '</b></span>' : '') + '</div><div class="table-wrap"><table class="tbl cards akun-tbl"><thead><tr>' +
+      '<th class="c" style="width:52px">No</th><th class="c" style="width:64px">Action</th><th>Desa</th><th>Username</th><th>Kepala Desa</th><th>Login Terakhir</th><th class="c">Status</th><th>Modin &amp; WhatsApp</th></tr></thead><tbody>' +
       S.master.desa.map(function (d, i) {
         var us = desaUsers(d.desa_id), u = us[0];
         return '<tr' + (lkBool(d.aktif) ? '' : ' style="opacity:.6"') + '><td class="c" data-l="No">' + (i + 1) + '</td><td class="c"><button class="btn btn-menu" data-menu-anchor data-desa="' + esc(d.desa_id) + '">' + icon('menu', 16) + '</button></td>' +
           '<td class="nm" data-l="Desa">' + esc(d.nama_desa) + '<span class="sub">Kode ' + esc(d.kode) + (lkBool(d.aktif) ? '' : ' · desa nonaktif') + '</span></td>' +
           '<td class="mono" data-l="Username">' + (u ? esc(u.username) + (us.length > 1 ? ' <span class="muted">+' + (us.length - 1) + '</span>' : '') : '–') + '</td>' +
-          '<td data-l="Kepala Desa">' + (d.kepala_desa ? esc(d.kepala_desa) : '<span class="muted">belum diisi</span>') + '</td>' +
-          '<td data-l="Login Terakhir" class="nowrap">' + (u ? UI.waktu(u.terakhir_login) : '–') + '</td><td class="c">' + statusPill(u) + '</td></tr>';
+          '<td data-l="Kepala Desa">' + (d.kepala_desa ? esc(d.kepala_desa) : '<span class="muted">–</span>') + '</td>' +
+          '<td data-l="Login Terakhir" class="nowrap">' + (u ? UI.waktu(u.terakhir_login) : '–') + '</td><td class="c">' + statusPill(u) + '</td>' +
+          '<td data-l="Modin &amp; WhatsApp">' + modinCell(d) + '</td></tr>';
       }).join('') + '</tbody></table></div></div>' +
-      '<div class="card"><div class="card-head"><h2>Akun KUA</h2><span class="sub">Akun individual — riwayat mencatat siapa yang mengubah</span></div><div class="table-wrap"><table class="tbl"><thead><tr>' +
+      '<div class="card"><div class="card-head"><h2>Akun KUA</h2></div><div class="table-wrap"><table class="tbl"><thead><tr>' +
       '<th class="c" style="width:64px">Action</th><th>Username</th><th>Nama</th><th>Peran</th><th>Login Terakhir</th><th class="c">Status</th></tr></thead><tbody>' +
       kuaUsers.map(function (u) {
         return '<tr><td class="c"><button class="btn btn-menu" data-menu-anchor data-user="' + esc(u.user_id) + '">' + icon('menu', 16) + '</button></td><td class="mono">' + esc(u.username) + '</td><td class="nm">' + esc(u.nama_tampilan) + '</td>' +
@@ -109,11 +121,18 @@ var Master = (function () {
     App.bindRefresh(main);
     main.querySelector('[data-newdesa]').onclick = function () { editDesa(null, main); };
     main.querySelector('[data-newuser]').onclick = function () { editUser(null, main); };
+    UI.$$('[data-editdesa]', main).forEach(function (b) { b.onclick = function () { editDesa(S.master.desa.find(function (x) { return x.desa_id === b.dataset.editdesa; }), main); }; });
+    UI.$$('[data-wa]', main).forEach(function (b) {
+      b.onclick = function () {
+        var d = S.master.desa.find(function (x) { return x.desa_id === b.dataset.wa; });
+        kirimAkunWa(d, lkModinList(d)[Number(b.dataset.wi)], main, b);
+      };
+    });
     UI.$$('[data-desa]', main).forEach(function (b) {
       b.onclick = function () {
         var d = S.master.desa.find(function (x) { return x.desa_id === b.dataset.desa; });
         var u = desaUsers(d.desa_id)[0];
-        var items = [{ label: 'Edit Data Desa', icon: 'building', onClick: function () { editDesa(d, main); } }];
+        var items = [{ label: 'Edit Desa & Modin', icon: 'building', onClick: function () { editDesa(d, main); } }];
         if (u) {
           items.push({ label: 'Edit Akun ' + u.username, icon: 'pencil', onClick: function () { editUser(u, main); } });
           items.push({ label: 'Reset Password', icon: 'key', onClick: function () { resetPw(u, main); } });
@@ -136,21 +155,77 @@ var Master = (function () {
     });
   }
 
+  /* ---------- WhatsApp ke modin: tautan KUA-Link + username + password awal ---------- */
+  function pesanAkun(d, mo, u, pw) {
+    var url = location.origin + location.pathname.replace(/index\.html$/, '');
+    return ['Assalamu\'alaikum, Bapak/Ibu ' + mo.nama + '.', '',
+      'Berikut akun *KUA-Link Desa ' + d.nama_desa + '* untuk pendaftaran nikah ke ' + App.kuaName() + ':', '',
+      'Alamat   : ' + url, 'Username : ' + u.username,
+      'Password : ' + (pw || '(password yang sudah Anda buat sendiri)'), '',
+      pw ? 'Saat masuk pertama, Anda diminta mengganti password. Simpan baik-baik dan jangan dibagikan.' : 'Lupa password? Hubungi ' + App.kuaName() + ' untuk reset.',
+      'Panduan pemakaian ada di menu Panduan.'].join('\n');
+  }
+  function bukaWa(nomor, text, win) {
+    var url = Pengajuan.waUrl({ nomor: nomor, text: text });
+    if (win) { try { win.location.href = url; return; } catch (e) { /* lanjut */ } }
+    if (!Pengajuan.openWa({ nomor: nomor, text: text })) UI.toast('Pop-up diblokir browser. Izinkan pop-up lalu coba lagi.', 'warning');
+  }
+  async function kirimAkunWa(d, mo, main, btn) {
+    var u = desaUsers(d.desa_id).find(function (x) { return x.aktif; }) || desaUsers(d.desa_id)[0];
+    if (!u) return UI.toast('Desa ' + d.nama_desa + ' belum punya akun. Buat lewat menu ☰.', 'warning');
+    if (!mo || !mo.wa) return UI.toast('Nomor WhatsApp modin belum diisi.', 'warning');
+    if (u.wajib_ganti_pw && pwAwal) return bukaWa(mo.wa, pesanAkun(d, mo, u, pwAwal));
+    var m = UI.modal({
+      title: 'Kirim akun ke ' + mo.nama, icon: 'chat',
+      body: '<p style="margin-top:0">Akun <b class="mono">' + esc(u.username) + '</b> sudah memakai password sendiri. Reset ke password awal lalu kirim?</p>',
+      foot: '<button class="btn" data-close>Batal</button><button class="btn" data-tanpa>Kirim tanpa password</button><button class="btn btn-primary" data-reset>' + icon('key', 16) + 'Reset &amp; Kirim</button>'
+    });
+    m.root.querySelector('[data-tanpa]').onclick = function () { m.close(); bukaWa(mo.wa, pesanAkun(d, mo, u, '')); };
+    m.root.querySelector('[data-reset]').onclick = function (e) {
+      var win = UI.preOpen();
+      UI.busy(e.currentTarget, async function () {
+        var r = await API.call('resetPassword', { user_id: u.user_id, awal: true });
+        if (!r.success) { if (win) win.close(); return UI.toast(r.message, 'error'); }
+        var i = users.findIndex(function (x) { return x.user_id === u.user_id; }); users[i] = r.data.user;
+        m.close(); drawAkun(main);
+        bukaWa(mo.wa, pesanAkun(d, mo, r.data.user, pwAwal), win);
+        UI.toast(r.message);
+      });
+    };
+  }
+
+  function modinRowHtml(x) {
+    return '<div class="modin-edit" data-mrow><input class="input" data-mn placeholder="Nama modin" value="' + esc(x.nama || '') + '">' +
+      '<input class="input mono" data-mw inputmode="tel" placeholder="No. WA (08… / 62…)" value="' + esc(x.wa || '') + '">' +
+      '<button type="button" class="btn btn-ghost btn-icon" data-mdel aria-label="Hapus modin" style="color:var(--danger)">' + icon('xCircle', 18) + '</button></div>';
+  }
+
   function editDesa(d, main) {
     d = d || { aktif: 'TRUE' };
+    var ml = lkModinList(d);
     var m = UI.modal({
-      title: d.desa_id ? 'Edit Data Desa' : 'Tambah Desa', icon: 'building',
+      title: d.desa_id ? 'Desa ' + d.nama_desa : 'Tambah Desa', icon: 'building',
       body: '<div class="form-grid"><div class="field"><label>Nama Desa<span class="req">*</span></label><input class="input" data-v="nama_desa" value="' + esc(d.nama_desa) + '"></div>' +
         '<div class="field"><label>Kode Desa</label><input class="input" data-v="kode" value="' + esc(d.kode) + '"></div>' +
-        '<div class="field full"><label>Nama Kepala Desa</label><input class="input" value="' + esc(d.kepala_desa || '— belum diisi desa —') + '" readonly><div class="help">Diisi operator desa di Profil Desa atau saat mengisi pengajuan.</div></div>' +
+        '<div class="field full"><label>Nama Kepala Desa</label><input class="input" value="' + esc(d.kepala_desa || '— diisi desa —') + '" readonly></div>' +
         '<div class="field full"><label>Alamat Kantor Desa</label><input class="input" data-v="alamat_kantor" value="' + esc(d.alamat_kantor) + '"></div>' +
+        '<div class="field full"><label>Modin</label><div data-mlist>' + (ml.length ? ml : [{}]).map(modinRowHtml).join('') + '</div>' +
+        '<button type="button" class="btn btn-sm mt-s" data-madd style="align-self:flex-start">' + icon('plus', 14) + 'Tambah Modin</button>' +
+        '<div class="help">Satu modin → terisi otomatis di formulir desa. Lebih dari satu → desa memilih.</div></div>' +
         '<label class="switch"><input type="checkbox" data-v="aktif"' + (lkBool(d.aktif) ? ' checked' : '') + '>Desa aktif</label></div>',
       foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>Simpan</button>'
     });
+    var list = m.root.querySelector('[data-mlist]');
+    var bindDel = function () { UI.$$('[data-mdel]', list).forEach(function (b) { b.onclick = function () { b.closest('[data-mrow]').remove(); }; }); };
+    bindDel();
+    m.root.querySelector('[data-madd]').onclick = function () { list.insertAdjacentHTML('beforeend', modinRowHtml({})); bindDel(); var ins = list.querySelectorAll('[data-mn]'); ins[ins.length - 1].focus(); };
     m.root.querySelector('[data-ok]').onclick = function () {
       var b = this, g = function (k) { var x = m.root.querySelector('[data-v="' + k + '"]'); return x.type === 'checkbox' ? x.checked : x.value.trim(); };
+      var modin = UI.$$('[data-mrow]', list).map(function (r) { return { nama: r.querySelector('[data-mn]').value.trim(), wa: r.querySelector('[data-mw]').value.trim() }; })
+        .filter(function (x) { return x.nama || x.wa; });
+      if (modin.some(function (x) { return !x.nama; })) return UI.toast('Nama modin wajib diisi.', 'error');
       UI.busy(b, async function () {
-        var r = await API.call('saveDesa', { desa_id: d.desa_id, nama_desa: g('nama_desa'), kode: g('kode'), alamat_kantor: g('alamat_kantor'), aktif: g('aktif') });
+        var r = await API.call('saveDesa', { desa_id: d.desa_id, nama_desa: g('nama_desa'), kode: g('kode'), alamat_kantor: g('alamat_kantor'), aktif: g('aktif'), modin: modin });
         if (!r.success) return UI.toast(r.message, 'error');
         setMaster(r.data.master); m.close(); UI.toast(r.message); drawAkun(main);
       });
@@ -167,13 +242,17 @@ var Master = (function () {
         '<div class="field" data-desawrap><label>Desa<span class="req">*</span></label><select class="select" data-v="desa_id">' + UI.options(S.master.desa.map(function (d) { return { v: d.desa_id, l: d.nama_desa }; }), u.desa_id, '— Pilih desa —') + '</select></div>' +
         '<div class="field"><label>Username<span class="req">*</span></label><input class="input mono" data-v="username" value="' + esc(u.username) + '" autocomplete="off"><div class="help">Huruf kecil, angka, titik.</div></div>' +
         '<div class="field"><label>Nama Tampilan</label><input class="input" data-v="nama_tampilan" value="' + esc(u.nama_tampilan) + '"></div>' +
-        (isNew ? '<div class="field"><label>Password Awal<span class="req">*</span></label><input class="input" type="password" data-v="password" autocomplete="new-password"><div class="help">Min. 8 karakter, huruf + angka.</div></div>' +
-        '<div class="field"><label>Ulangi Password<span class="req">*</span></label><input class="input" type="password" data-v="password2" autocomplete="new-password"></div>' +
-        '<div class="field full"><div class="banner neutral">' + icon('key') + '<div class="txt">Sampaikan password awal ini langsung ke pemilik akun (bukan lewat grup). Pemilik akun <b>wajib menggantinya</b> saat login pertama.</div></div></div>' : '') +
+        (isNew ? '<div class="field"><label>Password Awal</label><input class="input" type="password" data-v="password" autocomplete="new-password"><div class="help" data-pwhelp></div></div>' +
+        '<div class="field"><label>Ulangi Password</label><input class="input" type="password" data-v="password2" autocomplete="new-password"></div>' : '') +
         '<label class="switch"><input type="checkbox" data-v="aktif"' + (u.aktif === false ? '' : ' checked') + '>Akun aktif</label></div>',
       foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>Simpan</button>'
     });
-    var sync = function () { m.root.querySelector('[data-desawrap]').style.display = m.root.querySelector('[data-v="peran"]').value === 'OPERATOR_DESA' ? '' : 'none'; };
+    var sync = function () {
+      var desa = m.root.querySelector('[data-v="peran"]').value === 'OPERATOR_DESA';
+      m.root.querySelector('[data-desawrap]').style.display = desa ? '' : 'none';
+      var h = m.root.querySelector('[data-pwhelp]');
+      if (h) h.textContent = desa ? 'Kosongkan = password awal desa (' + (pwAwal || '—') + '). Wajib diganti saat login pertama.' : 'Wajib: min. 8 karakter, huruf + angka.';
+    };
     m.root.querySelector('[data-v="peran"]').onchange = sync; sync();
     m.root.querySelector('[data-ok]').onclick = function () {
       var b = this, g = function (k) { var x = m.root.querySelector('[data-v="' + k + '"]'); return x.type === 'checkbox' ? x.checked : x.value.trim(); };
@@ -190,10 +269,19 @@ var Master = (function () {
     };
   }
 
-  function resetPw(u, main) {
+  async function resetPw(u, main) {
+    if (u.peran === 'OPERATOR_DESA') {
+      var ok = await UI.confirm({ title: 'Reset password ' + u.username, icon: 'key', html: 'Password dikembalikan ke password awal desa <b class="mono">' + esc(pwAwal) + '</b> dan wajib diganti saat masuk. Sesi yang aktif dikeluarkan.', ok: 'Reset Password' });
+      if (!ok) return;
+      var r0 = await API.call('resetPassword', { user_id: u.user_id, awal: true });
+      if (!r0.success) return UI.toast(r0.message, 'error');
+      var i0 = users.findIndex(function (x) { return x.user_id === u.user_id; }); users[i0] = r0.data.user;
+      drawAkun(main);
+      return UI.toast(r0.message + ' Kirim ke modin lewat ikon WhatsApp.');
+    }
     var m = UI.modal({
       title: 'Reset Password — ' + u.username, icon: 'key',
-      body: '<p style="margin-top:0">Ketik password awal baru. Sesi yang sedang aktif di akun ini akan dikeluarkan, dan pemilik akun <b>wajib menggantinya</b> saat login berikutnya.</p>' +
+      body: '<p style="margin-top:0">Sesi aktif akun ini dikeluarkan; pemilik akun wajib mengganti password saat masuk.</p>' +
         '<div class="form-grid"><div class="field"><label>Password Baru<span class="req">*</span></label><input class="input" type="password" data-v="password" autocomplete="new-password" autofocus><div class="help">Min. 8 karakter, huruf + angka.</div></div>' +
         '<div class="field"><label>Ulangi Password<span class="req">*</span></label><input class="input" type="password" data-v="password2" autocomplete="new-password"></div></div>',
       foot: '<button class="btn" data-close>Batal</button><button class="btn btn-primary" data-ok>' + icon('key', 16) + 'Reset Password</button>'
@@ -762,27 +850,24 @@ var Master = (function () {
     if (!r.success) { main.querySelector('.card').innerHTML = '<div class="banner danger">' + icon('xCircle') + '<div class="txt">' + esc(r.message) + '</div></div>'; return; }
     var V = {};
     r.data.forEach(function (x) { V[x.key] = x; });
-    var inp = function (k, label, ph, type) {
+    var inp = function (k, label, ph, type, help) {
       var x = V[k] || { value: '', keterangan: '' };
-      return '<div class="field"><label>' + esc(label) + '</label><input class="input" data-ik="' + k + '" value="' + esc(x.value) + '" placeholder="' + esc(ph || '') + '"' + (type ? ' type="' + type + '"' : '') + ' autocomplete="off"><div class="help">' + esc(x.keterangan) + '</div></div>';
+      return '<div class="field"><label>' + esc(label) + '</label><input class="input" data-ik="' + k + '" value="' + esc(x.value) + '" placeholder="' + esc(ph || '') + '"' + (type ? ' type="' + type + '"' : '') + ' autocomplete="off">' + (help ? '<div class="help">' + help + '</div>' : '') + '</div>';
     };
     var tujuan = function (kode, nama, isi) {
       return '<div class="card topline"><div class="card-head"><h2>' + icon('plug', 18) + ' ' + esc(nama) + '</h2><div class="end"><button class="btn btn-sm" data-test="' + kode + '">' + icon('refresh', 15) + 'Uji Koneksi</button></div></div><div class="card-body">' +
         '<p class="muted" style="margin-top:0">' + isi + '</p><div class="form-grid">' +
-        inp(kode + '_URL', 'URL API ' + nama + ' (/exec)', 'https://script.google.com/macros/s/…/exec') +
-        inp(kode + '_KEY', 'Kunci KUA-Link', 'hasil aturKunciKUALink()', 'password') + '</div></div></div>';
+        inp(kode + '_URL', 'URL /exec ' + nama, 'https://script.google.com/macros/s/…/exec', '', 'Sama dengan <code>GAS_URL</code> frontend ' + esc(nama) + '.') +
+        inp(kode + '_KEY', 'Kunci KUA-Link', 'AKD-… / LBD-…', 'password', 'Hasil <b>aturKunciKUALink</b> di editor ' + esc(nama) + '.') + '</div></div></div>';
     };
     main.innerHTML = head('INTEGRASI & WHATSAPP', 'Data Master') +
-      '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Setelah desa menekan <b>Simpan &amp; Cetak</b>, paket PDF lengkap disimpan di Drive, lalu: <b>WhatsApp</b> ke nomor KUA terbuka otomatis (bukti daftar + tautan PDF), ' +
-      '<b>nikah di wilayah</b> → masuk <b>Akad Tracker</b> + <b>LABUKU Desk</b> (Pendaftaran Kehendak Nikah), <b>luar wilayah</b> → masuk <b>LABUKU Desk</b> saja (Rekomendasi Nikah). ' +
-      'Pembatalan ikut mengubah status di aplikasi tujuan menjadi BATAL.</div></div>' +
+      '<div class="stack">' +
       '<div class="card topline tone-gold"><div class="card-head"><h2>' + icon('chat', 18) + ' WhatsApp KUA</h2></div><div class="card-body"><div class="form-grid">' +
-      inp('WA_KUA', 'Nomor WhatsApp KUA', '08xxxxxxxxxx', 'tel') +
+      inp('WA_KUA', 'Nomor WhatsApp KUA', 'mis. 081234567890', 'tel') +
       '<div class="field"><label>Tautan PDF paket</label><select class="select" data-ik="PAKET_LINK_PUBLIK">' + UI.options([{ v: 'TRUE', l: 'Bisa dibuka siapa saja yang punya tautan' }, { v: 'FALSE', l: 'Hanya akun yang diberi akses' }], String((V.PAKET_LINK_PUBLIK || {}).value || 'TRUE').toUpperCase()) + '</select>' +
-      '<div class="help">Tautan berisi data pribadi (NIK). "Siapa saja" diperlukan agar bisa dibuka dari WhatsApp tanpa login; jangan teruskan pesan ke pihak lain.</div></div></div></div></div>' +
-      tujuan('AKAD_TRACKER', 'Akad Tracker', 'Hanya <b>nikah di wilayah</b>: langsung menjadi jadwal akad (sumber KUA-Link). Penghulu, modin &amp; perubahan jam oleh tim KUA tidak tertimpa saat desa mencetak ulang.') +
-      tujuan('LABUKU_DESK', 'LABUKU Desk', 'Menjadi layanan <b>Pendaftaran Kehendak Nikah</b> (nikah di wilayah) atau <b>Penerbitan Surat Rekomendasi Nikah</b> (luar wilayah), berstatus <b>Pending</b> sampai catin datang — Front Office cukup Tambah Antrean dengan NIK catin.') +
-      '<div class="banner warn">' + icon('alert') + '<div class="txt"><b>URL</b> = URL Web App /exec aplikasi itu (sama dengan <code>GAS_URL</code> di <code>js/config.js</code> frontend-nya). <b>Kunci</b> = hasil menjalankan <b>aturKunciKUALink</b> di editor Apps Script aplikasi itu (lihat Execution log). Panduan Bagian K. Kiriman yang gagal dicoba ulang otomatis tiap 30 menit.</div></div>' +
+      '<div class="help">Berisi NIK. "Siapa saja" agar bisa dibuka dari WhatsApp.</div></div></div></div></div>' +
+      tujuan('AKAD_TRACKER', 'Akad Tracker', 'Nikah di wilayah → jadwal akad (dengan modin).') +
+      tujuan('LABUKU_DESK', 'LABUKU Desk', 'Nikah di wilayah → Pendaftaran Kehendak Nikah · luar wilayah → Rekomendasi Nikah. Masuk antrean Front Office sampai diverifikasi.') +
       '<div class="row end"><button class="btn btn-primary" data-isave>' + icon('save') + 'Simpan Pengaturan</button></div></div>';
     App.bindRefresh(main);
     var collect = function () { var o = {}; UI.$$('[data-ik]', main).forEach(function (el) { o[el.dataset.ik] = el.value.trim(); }); return o; };

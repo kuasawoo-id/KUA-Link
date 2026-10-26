@@ -41,9 +41,9 @@ var Pengajuan = (function () {
       lastParamsKey = key;
     }
     var kua = App.isKua();
-    main.innerHTML = App.pageHead('Beranda / Daftar Pengajuan', 'DAFTAR PENGAJUAN', F.status ? TITLES[F.status] : 'Semua Status') +
+    main.innerHTML = App.pageHead('Beranda / Riwayat Pengajuan', 'RIWAYAT PENGAJUAN', F.status ? TITLES[F.status] : 'Semua Status') +
       '<div class="stack"><div class="card filter-card' + (collapsed ? ' collapsed' : '') + '" id="lf"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter Pencarian</span><span class="sep"></span>' +
-      '<span class="caption">Data Pengajuan</span><button class="toggle" data-toggle>' + (collapsed ? '▾ Tampilkan' : '▴ Sembunyikan') + '</button></div><div class="fbody"><div class="filter-grid">' +
+      '<span class="caption hide-sm">Data Pengajuan</span><button class="toggle" data-toggle>' + (collapsed ? '▾ Tampilkan' : '▴ Sembunyikan') + '</button></div><div class="fbody"><div class="filter-grid">' +
       fi('id', 'No. Pengajuan', 'cth. LK-2026-00125') + fi('nik', 'NIK Catin', '16 digit NIK', 'numeric') + fi('nama', 'Nama Catin', 'min. 3 karakter') +
       '<div class="field"><label>Jenis</label><select class="select" data-f="jenis">' + UI.options([{ v: 'NIKAH_DI_KUA', l: 'Nikah di Wilayah' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi (Luar Wilayah)' }], F.jenis, 'Semua') + '</select></div>' +
       '<div class="field"><label>Status</label><select class="select" data-f="status">' + UI.options(STATUS_OPTS, F.status, 'Semua Status') + '</select></div>' +
@@ -52,7 +52,7 @@ var Pengajuan = (function () {
       '<div class="field"><label>Tgl Akad Sampai</label><input class="input" type="date" data-f="sampai" value="' + esc(F.sampai) + '"></div>' +
       '<div class="actions"><button class="btn" data-reset>Reset</button><button class="btn btn-primary" data-apply>' + icon('search', 16) + 'Tampilkan</button></div>' +
       '</div>' + (F.q ? '<div class="banner neutral mt-s">' + icon('search') + '<div class="txt">Pencarian cepat: <b>' + esc(F.q) + '</b></div><a href="#" data-clearq>Hapus</a></div>' : '') + '</div></div>' +
-      '<div class="row">' + (kua ? '' : '<a class="btn btn-primary btn-gold" href="#/form/new" style="height:44px">' + icon('plus') + 'Pengajuan Baru</a><span class="muted hide-sm">Isi data catin sekali — paket surat dibuat otomatis.</span>') +
+      '<div class="row">' + (kua ? '' : '<a class="btn btn-primary btn-gold" href="#/form/new" style="height:44px">' + icon('plus') + 'Pengajuan Baru</a>') +
       '<button class="btn" id="btnXls" style="margin-left:auto">' + icon('sheet') + 'Ekspor Excel</button></div>' +
       '<div class="card" id="listCard"></div></div>';
     App.bindRefresh(main);
@@ -195,7 +195,7 @@ var Pengajuan = (function () {
           state.map(function (s) {
             var ic = s.st === 'ok' ? '<span style="color:var(--emerald)">' + icon('check', 18) + '</span>' : s.st === 'run' ? '<span class="spin" style="display:inline-block;width:16px;height:16px;border:2px solid var(--emerald);border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span>' : s.st === 'fail' ? '<span style="color:var(--danger)">' + icon('xCircle', 18) + '</span>' : '<span class="muted">○</span>';
             return '<div><span class="st">' + ic + '</span><span><b>' + esc(lkSplitKey(s.k).kode) + '</b> ' + esc(nm(s.k)) + (s.msg ? ' <span class="muted">— ' + esc(s.msg) + '</span>' : '') + '</span></div>';
-          }).join('') + '</div><p class="muted" style="font-size:12.5px;margin-bottom:0">Setiap surat dibuat dari template Google Docs (±5–10 detik per surat). Jangan tutup halaman ini.</p>';
+          }).join('') + '</div><p class="muted" style="font-size:12.5px;margin-bottom:0">±5–10 detik per surat. Jangan tutup halaman ini.</p>';
       };
       var run = async function () {
         m.root.querySelector('[data-retry]').classList.add('hidden');
@@ -297,7 +297,7 @@ var Pengajuan = (function () {
     return '<div class="doclist">' + list.map(function (h) {
       var ok = h.status === 'TERKIRIM', none = h.status === 'BELUM_DIATUR';
       return '<div class="docitem"><span class="ic" style="' + (ok ? '' : none ? 'color:var(--muted)' : 'color:var(--danger)') + '">' + icon(ok ? 'checkCircle' : none ? 'plug' : 'xCircle', 18) + '</span><div class="nm"><b>' + esc(h.nama) + ' — ' + esc(h.layanan) + '</b><span>' +
-        (ok ? 'Terkirim' : none ? 'Belum disambungkan (Admin KUA: Data Master → Integrasi)' : 'Gagal: ' + esc(h.pesan)) + '</span></div></div>';
+        (ok ? 'Terkirim' : none ? 'Belum disambungkan' : 'Gagal — dikirim ulang otomatis: ' + esc(h.pesan)) + '</span></div></div>';
     }).join('') + '</div>';
   }
   /** Dari menu aksi / detail: gabung PDF → unggah → kirim → buka WhatsApp KUA. */
@@ -322,8 +322,8 @@ var Pengajuan = (function () {
     var opened = openWa(res.wa);
     var m = UI.modal({
       title: 'Kirim ke KUA', icon: 'send',
-      body: '<p style="margin-top:0">' + (opened ? 'WhatsApp sudah dibuka — tinggal tekan <b>Kirim</b>.' : 'Tekan tombol hijau untuk membuka WhatsApp, lalu tekan <b>Kirim</b>.') + ' Pesan berisi bukti daftar <b class="mono">' + esc(id) + '</b> dan tautan PDF lengkap.</p>' +
-        (res.wa && !res.wa.nomor ? '<div class="banner warn">' + icon('alert') + '<div class="txt">Nomor WhatsApp KUA belum diatur — pilih kontak KUA secara manual. (Admin KUA: Data Master → Integrasi)</div></div>' : '') +
+      body: '<p style="margin-top:0">' + (opened ? 'WhatsApp sudah dibuka — tekan <b>Kirim</b>.' : 'Buka WhatsApp dengan tombol hijau, lalu tekan <b>Kirim</b>.') + '</p>' +
+        (res.wa && !res.wa.nomor ? '<div class="banner warn">' + icon('alert') + '<div class="txt">Nomor WhatsApp KUA belum diatur — pilih kontak KUA manual.</div></div>' : '') +
         (res.catatan_link ? '<div class="banner warn mt-s">' + icon('alert') + '<div class="txt">' + esc(res.catatan_link) + '</div></div>' : '') +
         integrasiHtml(res.integrasi) +
         '<div class="row mt-s" style="gap:8px;flex-wrap:wrap"><a class="btn btn-wa" href="' + esc(waUrl(res.wa)) + '" target="_blank" rel="noopener">' + icon('chat') + 'Buka WhatsApp KUA</a>' +
@@ -434,8 +434,8 @@ var Detail = (function () {
 
     var banners = '';
     var ed = lastAudit('EDIT_KUA');
-    if (ed && st !== 'DIBATALKAN') banners += '<div class="banner info">' + icon('printer') + '<div class="txt"><b>Data diubah KUA ' + UI.waktu(ed.waktu) + '.</b> Bila berkas sudah dicetak, cetak ulang versi terbaru dan minta tanda tangan ulang Kepala Desa.</div></div>';
-    if (st === 'DRAF') banners += '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>Data belum lengkap.</b> Lanjutkan mengisi sampai langkah <b>Validasi</b>, lalu tekan <b>Simpan &amp; Cetak</b>.</div></div>';
+    if (ed && st !== 'DIBATALKAN') banners += '<div class="banner info">' + icon('printer') + '<div class="txt"><b>Data diubah KUA ' + UI.waktu(ed.waktu) + '.</b> Cetak ulang &amp; tanda tangan ulang.</div></div>';
+    if (st === 'DRAF') banners += '<div class="banner warn">' + icon('pencil') + '<div class="txt"><b>Draf.</b> Lanjutkan mengisi lalu <b>Simpan &amp; Cetak</b>.</div></div>';
     if (st === 'DIBATALKAN') banners += '<div class="banner danger">' + icon('xCircle') + '<div class="txt"><b>Status Batal:</b> ' + esc(p.alasan_batal || '-') + '. Data tetap tersimpan.</div><button class="btn btn-sm" data-reactivate>' + icon('rotate', 15) + 'Aktifkan Kembali</button></div>';
     if (st === 'SELESAI' && data.dokumen_perlu && data.dokumen_perlu.length) banners += '<div class="banner neutral">' + icon('fileCheck') + '<div class="txt">Surat akan dibuat/diperbarui otomatis saat dicetak: <b>' + esc(data.dokumen_perlu.join(', ')) + '</b>.</div></div>';
 
@@ -463,7 +463,7 @@ var Detail = (function () {
       App.kv('Desa', App.desaName(p.desa_id)) + App.kv('Jenis Pengajuan', f('jenis_pengajuan')) +
       App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Calon Suami', d.suami_nama || '–') + App.kv('Calon Istri', d.istri_nama || '–') +
       App.kv('Hari, Tanggal Akad', d.akad_tanggal ? lkHari(d.akad_tanggal) + ', ' + lkTanggalPanjang(d.akad_tanggal) : '–') +
-      App.kv('Jam & Tempat Akad', [d.akad_jam ? d.akad_jam + ' WIB' : '', d.akad_tempat].filter(Boolean).join(' · ') || '–') + App.kv('Nomor / Tanggal Surat Desa', (d.adm_nomor_surat || '–') + ' / ' + (d.adm_tanggal_surat ? lkTanggalPanjang(d.adm_tanggal_surat) : '–')) +
+      App.kv('Jam & Tempat Akad', [d.akad_jam ? d.akad_jam + ' WIB' : '', d.akad_tempat].filter(Boolean).join(' · ') || '–') + App.kv('Modin', d.adm_modin || '–') + App.kv('Nomor / Tanggal Surat Desa', (d.adm_nomor_surat || '–') + ' / ' + (d.adm_tanggal_surat ? lkTanggalPanjang(d.adm_tanggal_surat) : '–')) +
       App.kv('Umur saat Akad', 'Suami ' + (der.suami_umur_saat_akad || '–') + ' th · Istri ' + (der.istri_umur_saat_akad || '–') + ' th') +
       App.kv('Pengajuan Pasangan', data.pasangan ? data.pasangan.pengajuan_id + ' · ' + data.pasangan.nama_catin + ' (' + App.desaName(data.pasangan.desa_id) + ', ' + data.pasangan.status + ')' : 'Belum tertaut') +
       App.kv('Dibuat', UI.waktu(p.dibuat_pada) + ' — ' + p.dibuat_oleh) + App.kv('Terakhir Diubah', UI.waktu(p.diubah_pada) + ' — ' + p.diubah_oleh) +

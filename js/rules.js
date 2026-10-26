@@ -367,6 +367,12 @@ function lkTanpaAlm(nm) { return lkStr(nm).replace(/\s*\(\s*alm\.?h?\s*\)\s*$/i,
 /* ---------------- MASA IDDAH ---------------- */
 
 /** Tambah n hari ke tanggal ISO. */
+/** v1.4: daftar modin desa [{nama, wa}] dari kolom modin_json data desa. */
+function lkModinList(desa) {
+  var a = lkJson(desa && desa.modin_json, []);
+  return Array.isArray(a) ? a.filter(function (x) { return x && lkStr(x.nama); }) : [];
+}
+
 function lkAddDays(iso, n) { var d = lkDateObj(iso); return d ? lkIso(new Date(d.getTime() + n * 86400000)) : ''; }
 
 /**
@@ -465,6 +471,15 @@ function lkSystemChecks(d, ctx) {
     var sl = lkJamSlots(true, cfg);
     w.push({ tingkat: 'BLOKIR', field: 'akad_jam', pesan: 'Akad di Kantor KUA hanya pada jam kerja (' + sl[0] + '–' + sl[sl.length - 1] + ').' });
   }
+  // v1.4: akad paling cepat sehari sesudah tanggal surat desa (tidak mungkin akad sebelum mendaftar)
+  if (lkParseDate(tgl) && lkParseDate(d.adm_tanggal_surat) && tgl <= lkStr(d.adm_tanggal_surat)) {
+    var fb = lkAddDays(d.adm_tanggal_surat, 1);
+    for (var gb = 0; kantor && lkHariTutup(fb, libur) && gb < 30; gb++) fb = lkAddDays(fb, 1);
+    w.push({ tingkat: 'BLOKIR', field: 'akad_tanggal', fix: { field: 'akad_tanggal', value: fb, label: 'Pakai tanggal akad ' + lkHari(fb) + ', ' + lkTanggalPanjang(fb) },
+      pesan: 'Tanggal akad paling cepat sehari sesudah tanggal surat desa (' + lkTanggalPanjang(d.adm_tanggal_surat) + ').' });
+  }
+  // v1.4: modin desa wajib dipilih bila Admin KUA sudah mendaftarkan modin desa ini
+  if (ctx.modin && ctx.modin.length && !lkStr(d.adm_modin)) w.push({ tingkat: 'BLOKIR', field: 'adm_modin', wajib: true, pesan: 'Pilih modin desa.' });
   var min = Number(cfg.min_hari_kerja) || 10;
   var hk = lkHariKerjaAntara(d.adm_tanggal_surat, tgl, libur);
   if (hk !== null && lkDateObj(tgl) > lkDateObj(d.adm_tanggal_surat) && hk < min) {
@@ -632,6 +647,6 @@ if (typeof module !== 'undefined' && module.exports) {
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
     lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
-    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList
   };
 }
