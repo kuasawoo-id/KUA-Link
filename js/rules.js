@@ -12,12 +12,12 @@ var LK_GROUPS = [
   { key: 'Administrasi', step: 1, label: 'Pengajuan & Administrasi Desa' },
   { key: 'Rencana Akad', step: 1, label: 'Jadwal Akad' },
   { key: 'Calon Suami', step: 2, prefix: 'suami', tab: 'Calon Suami' },
-  { key: 'Ayah Suami', step: 2, prefix: 'ayah_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ayah' },
-  { key: 'Ibu Suami', step: 2, prefix: 'ibu_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ibu' },
+  { key: 'Ayah Suami', step: 2, prefix: 'ayah_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ayah Calon Suami' },
+  { key: 'Ibu Suami', step: 2, prefix: 'ibu_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Ibu Calon Suami' },
   { key: 'Izin Orang Tua Suami', step: 2, prefix: 'izin_suami', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Suami (N5)', tab: 'Pemberi Izin' },
-  { key: 'Calon Istri', step: 3, prefix: 'istri', copyFrom: 'suami', copyLabel: 'Calon Suami', copyMode: 'domisili', tab: 'Calon Istri' },
-  { key: 'Ayah Istri', step: 3, prefix: 'ayah_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ayah' },
-  { key: 'Ibu Istri', step: 3, prefix: 'ibu_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ibu' },
+  { key: 'Calon Istri', step: 3, prefix: 'istri', tab: 'Calon Istri' },   // v1.5: tanpa salin alamat dari calon suami (jarang sama, rawan salah klik)
+  { key: 'Ayah Istri', step: 3, prefix: 'ayah_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ayah Calon Istri' },
+  { key: 'Ibu Istri', step: 3, prefix: 'ibu_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', tab: 'Ibu Calon Istri' },
   { key: 'Izin Orang Tua Istri', step: 3, prefix: 'izin_istri', copyFrom: 'istri', copyLabel: 'Calon Istri', copyMode: 'domisili', label: 'Pemberi Izin Nikah Calon Istri (N5)', tab: 'Pemberi Izin' },
   { key: 'Wali Nikah', step: 3, prefix: 'wali', copyFrom: 'ayah_istri', copyLabel: 'Ayah Istri', copyMode: 'domisili', tab: 'Wali Nikah' },
   { key: 'Turunan', step: 0, label: 'Field Otomatis (tidak tampil di formulir)' }
@@ -33,6 +33,10 @@ var LK_KANTOR = 'Kantor KUA';
 var LK_ORTU = ['ayah_suami', 'ibu_suami', 'ayah_istri', 'ibu_istri'];
 var LK_ADA = 'Ada';
 var LK_MENINGGAL = 'Meninggal';
+var LK_TIDAK_DIKETAHUI = 'Tidak Diketahui Keberadaannya';
+/** v1.5: status perkawinan sesuai Dukcapil (KTP-el/KK). */
+var LK_CERAI_HIDUP = 'Cerai Hidup';
+var LK_CERAI_MATI = 'Cerai Mati';
 /** Urutan wali nasab — PMA 30/2024 Pasal 12 ayat (3). */
 var LK_WALI_NASAB = ['Bapak kandung', 'Kakek (bapak dari bapak)', 'Buyut (bapak dari kakek)', 'Saudara laki-laki sebapak seibu',
   'Saudara laki-laki sebapak', 'Anak laki-laki dari saudara laki-laki sebapak seibu', 'Anak laki-laki dari saudara laki-laki sebapak',
@@ -155,6 +159,8 @@ function lkAlamatLengkap(data, prefix) {
  *  SYIBHUL_IDDAH:suami           "Ya" bila akad calon suami (cerai talak) masih dalam masa iddah mantan istrinya
  *  CATIN:<pola>                  pola berisi {p} = suami/istri sesuai catin pengajuan ini
  *  PASANGAN:<pola>               {p} = pasangannya
+ *  MANTAN_BIN:<pola>             "binti X"/"bin X" dari nama ayah mantan pasangan catin (kosong bila tidak ada)
+ *  WALI:penetapan | sebab_judul  kalimat Berita Acara Pemeriksaan Wali
  * Otomatis juga:
  *  - nama ayah/ibu yang meninggal diberi akhiran (Alm)/(Almh)
  *  - wali nasab "Bapak kandung" = data Ayah Calon Istri
@@ -173,6 +179,11 @@ function lkDerive(data, fields, ctx) {
       if (v === undefined || v === '') delete out['wali_' + s]; else out['wali_' + s] = v;
     });
   }
+  // v1.5: wali hakim karena wali tidak diketahui keberadaannya — wali (mafqud) bapak kandung = data Ayah Calon Istri
+  if (lkStr(out.wali_jenis) === 'Hakim' && lkStr(out.wali_hakim_alasan) === LK_WALI_HAKIM[2] && lkStr(out.wali_mafqud_hubungan) === LK_WALI_AYAH) {
+    out.wali_mafqud_nama = lkTanpaAlm(out.ayah_istri_nama);
+    out.wali_mafqud_bin = lkStr(out.ayah_istri_bin);
+  }
   // Orang tua yang sudah meninggal: (Alm) / (Almh)
   LK_ORTU.forEach(function (p) {
     var nm = lkStr(out[p + '_nama']);
@@ -187,7 +198,16 @@ function lkDerive(data, fields, ctx) {
     var i = t.indexOf(':');
     var jenis = t.slice(0, i), arg = t.slice(i + 1);
     if (jenis === 'UMUR_AKAD') out[f.field_key] = String(lkUmur(out[arg], out.akad_tanggal));
-    else if (jenis === 'ALAMAT' && arg.indexOf('{p}') < 0) out[f.field_key] = lkAlamatLengkap(out, arg);
+    else if (jenis === 'ALAMAT' && arg.indexOf('{p}') < 0) {
+      // v1.5: ayah/ibu tidak diketahui keberadaannya → alamat ditulis "Tidak diketahui keberadaannya"
+      out[f.field_key] = LK_ORTU.indexOf(arg) >= 0 && lkStr(out[arg + '_status_keberadaan']) === LK_TIDAK_DIKETAHUI ? 'Tidak diketahui keberadaannya' : lkAlamatLengkap(out, arg);
+    }
+    else if (jenis === 'WALI') {
+      // v1.5 (Berita Acara Pemeriksaan Wali): penetapan "nasab <hubungan>" / "hakim", judul sebab hanya untuk wali hakim
+      var wj = lkStr(out.wali_jenis);
+      if (arg === 'penetapan') out[f.field_key] = wj === 'Nasab' ? 'nasab ' + lkStr(out.wali_hubungan) : wj === 'Hakim' ? 'hakim' : '';
+      else if (arg === 'sebab_judul') out[f.field_key] = wj === 'Hakim' ? 'Adapun sebab wali hakim sebagai berikut :' : '';
+    }
     else if (jenis === 'BIN') out[f.field_key] = lkTanpaAlm(out[arg + '_nama']);
     else if (jenis === 'IDDAH_SELESAI') out[f.field_key] = iddah[arg] ? iddah[arg].selesai : '';
     else if (jenis === 'SYIBHUL_IDDAH') out[f.field_key] = iddah.suami && iddah.suami.dalamIddah ? 'Ya' : '';
@@ -213,6 +233,10 @@ function lkPerspective(out, fields, me) {
     var jenis = t.slice(0, i), arg = t.slice(i + 1);
     if (jenis === 'CATIN' || jenis === 'PASANGAN') {
       out[f.field_key] = lkStr(out[arg.replace(/\{p\}/g, jenis === 'CATIN' ? me : other)]);
+    } else if (jenis === 'MANTAN_BIN') {
+      // v1.5: "binti <ayah mantan istri>" (catin suami) / "bin <ayah mantan suami>" (catin istri); kosong bila belum pernah kawin
+      var mb = lkStr(out[arg.replace(/\{p\}/g, me)]);
+      out[f.field_key] = mb ? (me === 'suami' ? 'binti ' : 'bin ') + mb : '';
     } else if (jenis === 'ALAMAT' && arg.indexOf('{p}') >= 0) {
       out[f.field_key] = lkAlamatLengkap(out, arg.replace(/\{p\}/g, me));
     } else if (jenis === 'SYS' && arg === 'jenis_kelamin_catin') {
@@ -373,13 +397,23 @@ function lkModinList(desa) {
   return Array.isArray(a) ? a.filter(function (x) { return x && lkStr(x.nama); }) : [];
 }
 
+/**
+ * v1.5: nomor WhatsApp catin yang dikirim ke Akad Tracker & LABUKU Desk.
+ * Pengajuan untuk Calon Suami → no. HP calon suami; Calon Istri atau keduanya → no. HP calon istri
+ * (berlaku sama untuk nikah di wilayah maupun rekomendasi).
+ */
+function lkWaCatin(data) {
+  var p = lkStr(data && data.peran_catin);
+  return lkStr(data && data[p === 'SUAMI' ? 'suami_no_hp' : 'istri_no_hp']);
+}
+
 function lkAddDays(iso, n) { var d = lkDateObj(iso); return d ? lkIso(new Date(d.getTime() + n * 86400000)) : ''; }
 
 /**
  * Masa iddah (KHI Pasal 153):
- *  - Janda Cerai Hidup: tanggal akta cerai + 90 hari (3 kali suci, minimal 90 hari)
- *  - Janda Cerai Mati : tanggal meninggal suami + 130 hari
- *  - Duda Cerai Hidup karena Cerai Talak: iddah mantan istri (syibhul iddah) = tanggal akta cerai + 90 hari
+ *  - Calon istri Cerai Hidup: tanggal akta cerai + 90 hari (3 kali suci, minimal 90 hari)
+ *  - Calon istri Cerai Mati : tanggal meninggal suami + 130 hari
+ *  - Calon suami Cerai Hidup karena Cerai Talak: iddah mantan istri (syibhul iddah) = tanggal akta cerai + 90 hari
  * Batas (ketentuan KUA Sawoo): iddah selesai 5 Jan → surat desa paling cepat 6 Jan, akad paling cepat 7 Jan.
  * Angka bisa diubah di AppConfig: IDDAH_CERAI_HIDUP, IDDAH_CERAI_MATI, IDDAH_SURAT_SETELAH, IDDAH_AKAD_SETELAH.
  * Hasil: {istri:{jenis, dasar, hari, selesai, minSurat, minAkad}, suami:{..., dalamIddah}}
@@ -396,9 +430,9 @@ function lkIddah(d, cfg) {
   };
   var out = {};
   var si = lkStr(d.istri_status_perkawinan);
-  if (si === 'Janda Cerai Hidup') out.istri = make('cerai hidup', d.ks_istri_cerai_tanggal, hidup);
-  else if (si === 'Janda Cerai Mati') out.istri = make('cerai mati', d.ks_istri_kematian_tanggal, mati);
-  if (lkStr(d.suami_status_perkawinan) === 'Duda Cerai Hidup' && lkStr(d.ks_suami_jenis_cerai) === LK_CERAI_TALAK) {
+  if (si === LK_CERAI_HIDUP) out.istri = make('cerai hidup', d.ks_istri_cerai_tanggal, hidup);
+  else if (si === LK_CERAI_MATI) out.istri = make('cerai mati', d.ks_istri_kematian_tanggal, mati);
+  if (lkStr(d.suami_status_perkawinan) === LK_CERAI_HIDUP && lkStr(d.ks_suami_jenis_cerai) === LK_CERAI_TALAK) {
     out.suami = make('syibhul iddah', d.ks_suami_cerai_tanggal, hidup);
     if (out.suami) out.suami.dalamIddah = lkParseDate(d.akad_tanggal) ? lkStr(d.akad_tanggal) < out.suami.minAkad : false;
   }
@@ -502,11 +536,6 @@ function lkSystemChecks(d, ctx) {
         pesan: 'Calon istri masih dalam masa iddah (selesai ' + lkTanggalPanjang(ii.selesai) + '). Tanggal akad paling cepat ' + lkTanggalPanjang(ii.minAkad) + '.' });
     }
   }
-  // Tanggal meninggal tidak mungkin sesudah akta kematian terbit
-  ['suami', 'istri'].forEach(function (p) {
-    var tm = lkStr(d['ks_' + p + '_kematian_tanggal']), ta = lkStr(d['ks_' + p + '_dok_tanggal']);
-    if (lkParseDate(tm) && lkParseDate(ta) && tm > ta) w.push({ tingkat: 'BLOKIR', field: 'ks_' + p + '_kematian_tanggal', pesan: 'Tanggal meninggal tidak boleh sesudah tanggal akta kematian (' + lkTanggalPanjang(ta) + ').' });
-  });
   // Syibhul iddah: duda cerai talak menikah saat mantan istrinya masih dalam masa iddah
   if (idd.suami) {
     var is = idd.suami;
@@ -518,6 +547,10 @@ function lkSystemChecks(d, ctx) {
       w.push({ tingkat: 'INFO', field: 'ks_suami_cerai_tanggal', hint: true, pesan: 'Masa iddah mantan istri selesai ' + lkTanggalPanjang(is.selesai) + ' — akad sesudahnya, tidak perlu surat pernyataan tambahan.' });
     }
   }
+  // v1.5: nomor WA catin yang dikirim ke Akad Tracker & LABUKU Desk (pengajuan calon suami → suami; selain itu → istri)
+  if (lkStr(d.peran_catin) && !lkWaCatin(d)) {
+    w.push({ tingkat: 'PERINGATAN', pesan: 'Nomor HP/WhatsApp calon ' + (lkStr(d.peran_catin) === 'SUAMI' ? 'suami' : 'istri') + ' belum diisi — nomor ini dikirim ke Akad Tracker & LABUKU Desk untuk menghubungi catin.' });
+  }
   if (lkStr(d.suami_status_perkawinan) === 'Kawin') {
     w.push({ tingkat: 'PERINGATAN', field: 'suami_status_perkawinan', pesan: 'Calon suami berstatus Kawin (beristri lebih dari seorang) — wajib izin Pengadilan Agama.' });
   }
@@ -528,7 +561,7 @@ function lkSystemChecks(d, ctx) {
     if (lkStr(d.wali_jenis) === 'Hakim') {
       var a = lkStr(d.wali_hakim_alasan);
       if (a === LK_WALI_HAKIM[1]) w.push({ tingkat: 'INFO', field: 'wali_hakim_alasan', pesan: 'Wali adhal ditetapkan oleh Pengadilan (PMA 30/2024 Pasal 13 ayat 6).' });
-      if (a === LK_WALI_HAKIM[2]) w.push({ tingkat: 'INFO', field: 'wali_hakim_alasan', pesan: 'Wali tidak diketahui keberadaannya: lampirkan surat pernyataan bermaterai dari calon istri, disaksikan 2 orang (Pasal 13 ayat 7).' });
+      if (a === LK_WALI_HAKIM[2]) w.push({ tingkat: 'INFO', field: 'wali_hakim_alasan', pesan: 'Wali tidak diketahui keberadaannya: isi di bawah siapa wali nasab yang tidak diketahui keberadaannya — Surat Pernyataan (bermaterai, ditandatangani calon istri, disaksikan 2 orang; Pasal 13 ayat 7) otomatis masuk paket.' });
       if (a === LK_WALI_HAKIM[3]) w.push({ tingkat: 'INFO', field: 'wali_hakim_alasan', pesan: 'Wali dipenjara: lampirkan surat pernyataan tanggung jawab mutlak dari salah satu anggota keluarga (Pasal 13 ayat 8).' });
     }
   }
@@ -591,9 +624,11 @@ function lkKapital(s) {
 /**
  * Format nilai untuk dicetak di template.
  * fmt: tanggal_panjang | tanggal | hari | kapital | huruf_besar | huruf_kecil | terbilang | kode
+ *      tgl (angka tanggal) | bulan (nama bulan) | tahun | opsional (kosong bila tidak diisi, bukan "-")
  */
 function lkFormat(value, field, fmt) {
   var v = lkStr(value);
+  if (fmt === 'opsional') return v === '' ? '' : lkFormat(v, field, '');   // v1.5: kosong tetap kosong (tanpa "-")
   if (v === '') return '-';
   var tipe = field ? field.tipe : '';
   if (!fmt) {
@@ -610,11 +645,14 @@ function lkFormat(value, field, fmt) {
     case 'huruf_kecil': return (tipe === 'PILIHAN' ? lkOpsiLabel(field, v) : v).toLowerCase();
     case 'terbilang': return lkTerbilang(v);
     case 'kode': return v;
+    case 'tgl': { var dt = lkParseDate(v); return dt ? String(dt.d) : v; }
+    case 'bulan': { var db = lkParseDate(v); return db ? LK_BULAN[db.m - 1] : v; }
+    case 'tahun': { var dy = lkParseDate(v); return dy ? String(dy.y) : v; }
   }
   return v;
 }
 
-var LK_FORMATS = ['tanggal_panjang', 'tanggal', 'hari', 'kapital', 'huruf_besar', 'huruf_kecil', 'terbilang', 'kode'];
+var LK_FORMATS = ['tanggal_panjang', 'tanggal', 'hari', 'kapital', 'huruf_besar', 'huruf_kecil', 'terbilang', 'kode', 'tgl', 'bulan', 'tahun', 'opsional'];
 
 /** Hash FNV-1a 32-bit (hex) — penanda perubahan data per template. */
 function lkHash(str) {
@@ -647,6 +685,6 @@ if (typeof module !== 'undefined' && module.exports) {
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
     lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
-    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin
   };
 }

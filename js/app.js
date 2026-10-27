@@ -246,7 +246,9 @@ var App = (function () {
       '<button class="btn btn-ghost btn-icon menu-btn" id="menuBtn" aria-label="Menu">' + icon('menu', 22) + '</button>' +
       '<div class="wordmark">KUA-Link<small>by Ahzani Labs</small></div><div class="divider"></div>' +
       '<div class="welcome"><div class="hi"><span class="greet">Selamat datang,</span><b>' + esc(name) + '</b></div><div class="tagline">Surat Pengantar Nikah – ' + esc(kuaName()) + '</div></div>' +
-      '<div class="right"><button class="icon-btn" id="bellBtn" aria-label="Notifikasi">' + icon('bell', 20) + '<span class="count hidden" id="bellCount"></span></button>' +
+      '<div class="right"><button class="icon-btn" id="hdrRefresh" aria-label="Segarkan data" title="Segarkan data">' + icon('refresh', 19) + '</button>' +
+      '<button class="icon-btn" id="themeBtn" aria-label="Mode malam" title="Mode malam / terang">' + icon(UI.theme() === 'dark' ? 'sun' : 'moon', 19) + '</button>' +
+      '<button class="icon-btn" id="bellBtn" aria-label="Notifikasi">' + icon('bell', 20) + '<span class="count hidden" id="bellCount"></span></button>' +
       '<button class="account" id="accBtn" data-menu-anchor><span class="avatar">' + esc(UI.initials(person)) + '</span><span class="who"><b>' + esc(person) + '</b><span>' + esc(roleLabel()) + '</span></span>' + icon('chevD', 16) + '</button></div></header>' +
       '<div class="body"><nav class="sidebar" id="sidebar">' + sidebarHtml() + '</nav><div class="sidebar-backdrop" id="sbBack"></div>' +
       '<main class="main" id="main"></main></div>' + bottomNavHtml() + '</div><div id="overlayRoot"></div>';
@@ -301,6 +303,24 @@ var App = (function () {
     document.getElementById('menuBtn').onclick = function () { document.getElementById('sidebar').classList.toggle('show'); document.getElementById('sbBack').classList.toggle('show'); };
     document.getElementById('sbBack').onclick = closeSidebar;
     document.getElementById('bellBtn').onclick = openNotif;
+    // v1.5: segarkan semua data (daftar, notifikasi, data master) tanpa memuat ulang halaman
+    document.getElementById('hdrRefresh').onclick = function () {
+      var b = this;
+      if (b.classList.contains('spinning')) return;
+      b.classList.add('spinning');
+      // satu panggilan: data master + daftar pengajuan + notifikasi sekaligus
+      API.call('bootstrap').then(function (r) {
+        b.classList.remove('spinning');
+        if (!r.success) return UI.toast(r.message, 'error');
+        applyBoot(r.data, false); saveBootCache(r.data);
+        UI.toast('Data diperbarui.', 'info');
+      });
+    };
+    document.getElementById('themeBtn').onclick = function () {
+      var t = UI.theme() === 'dark' ? 'light' : 'dark';
+      UI.setTheme(t);
+      this.innerHTML = icon(t === 'dark' ? 'sun' : 'moon', 19);
+    };
     document.getElementById('accBtn').onclick = function (e) {
       var mi = [
         { label: isKua() ? 'Profil Akun' : 'Profil Desa', icon: 'user', onClick: function () { go('#/profil'); } },

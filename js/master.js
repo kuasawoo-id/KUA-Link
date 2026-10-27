@@ -319,15 +319,16 @@ var Master = (function () {
   /* =================================================================
    * FIELD SURAT
    * ================================================================= */
-  var FF = { q: '', grup: '', tipe: '', nonaktif: false };
+  var FF = { q: '', grup: '', tipe: '', nonaktif: false, jenis: 'isian' };
   function usage(key) {
     return S.master.templates.filter(function (t) { return lkBool(t.aktif) && lkJson(t.placeholder_list, []).indexOf(key) >= 0; }).map(function (t) { return t.kode; });
   }
   function field(main) {
     main.innerHTML = head('FIELD SURAT', 'Data Master') +
       '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Field = isian formulir desa sekaligus <b>penanda</b> di template Google Docs, ditulis <span class="code-chip">{{kode_field}}</span>. Field baru otomatis muncul di formulir desa sesuai grupnya. Field <b>Turunan</b> dihitung otomatis (umur, alamat lengkap, data catin) dan hanya dipakai di template/aturan.</div></div>' +
-      '<div class="card filter-card"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter</span></div><div class="fbody"><div class="filter-grid" style="grid-template-columns:2fr 1fr 1fr auto auto">' +
+      '<div class="card filter-card"><div class="fhead"><span class="t">' + icon('filter', 16) + 'Filter</span></div><div class="fbody"><div class="filter-grid c5" style="grid-template-columns:2fr 1fr 1fr 1fr auto auto">' +
       '<div class="field"><label>Cari</label><input class="input" data-ff="q" value="' + esc(FF.q) + '" placeholder="kode atau label"></div>' +
+      '<div class="field"><label>Jenis</label><select class="select" data-ff="jenis">' + UI.options([{ v: 'isian', l: 'Isian formulir' }, { v: 'turunan', l: 'Otomatis (turunan)' }], FF.jenis, 'Semua') + '</select></div>' +
       '<div class="field"><label>Grup</label><select class="select" data-ff="grup">' + UI.options(LK_GROUPS.map(function (g) { return g.key; }), FF.grup, 'Semua Grup') + '</select></div>' +
       '<div class="field"><label>Tipe</label><select class="select" data-ff="tipe">' + UI.options(LK_TYPES, FF.tipe, 'Semua Tipe') + '</select></div>' +
       '<div class="field"><label>&nbsp;</label><label class="check" style="height:42px"><input type="checkbox" data-ff="nonaktif"' + (FF.nonaktif ? ' checked' : '') + '>Tampilkan nonaktif</label></div>' +
@@ -345,16 +346,22 @@ var Master = (function () {
     var q = FF.q.toLowerCase();
     var list = S.master.fields.filter(function (f) {
       if (!FF.nonaktif && !lkBool(f.aktif)) return false;
+      if (FF.jenis === 'isian' && (f.turunan || f.grup === 'Turunan')) return false;
+      if (FF.jenis === 'turunan' && !(f.turunan || f.grup === 'Turunan')) return false;
       if (FF.grup && f.grup !== FF.grup) return false;
       if (FF.tipe && f.tipe !== FF.tipe) return false;
       if (q && (f.field_key + ' ' + f.label).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
+    var gi = function (f) { var i = LK_GROUPS.findIndex(function (g) { return g.key === f.grup; }); return i < 0 ? 99 : i; };
+    list.sort(function (a, b) { return gi(a) - gi(b) || Number(a.urutan) - Number(b.urutan); });
     var box = main.querySelector('#fieldTbl');
     box.innerHTML = '<div class="table-wrap"><table class="tbl"><thead><tr><th class="c" style="width:52px">No</th><th class="c" style="width:64px">Action</th><th>Kode Field</th><th>Label</th><th>Grup</th><th class="c">Tipe</th><th class="c">Wajib</th><th>Dipakai di Surat</th><th class="c">Status</th></tr></thead><tbody>' +
       (list.map(function (f, i) {
         var u = usage(f.field_key);
-        return '<tr' + (lkBool(f.aktif) ? '' : ' style="opacity:.55"') + '><td class="c">' + (i + 1) + '</td><td class="c"><button class="btn btn-menu" data-menu-anchor data-fk="' + esc(f.field_key) + '">' + icon('menu', 16) + '</button></td>' +
+        // v1.5: judul kelompok (grup formulir) agar daftar rapi per kegunaan
+        var gh = i === 0 || list[i - 1].grup !== f.grup ? '<tr class="grp-row"><td colspan="9">' + esc((lkGroup(f.grup) || {}).label || f.grup.replace(/^(Ayah|Ibu) (Suami|Istri)$/, '$1 Calon $2')) + ((lkGroup(f.grup) || {}).step ? ' <span class="muted">· langkah ' + lkGroup(f.grup).step + '</span>' : '') + '</td></tr>' : '';
+        return gh + '<tr' + (lkBool(f.aktif) ? '' : ' style="opacity:.55"') + '><td class="c">' + (i + 1) + '</td><td class="c"><button class="btn btn-menu" data-menu-anchor data-fk="' + esc(f.field_key) + '">' + icon('menu', 16) + '</button></td>' +
           '<td><span class="code-chip" data-copyk="' + esc(f.field_key) + '" title="Salin penanda">' + esc(f.field_key) + '</span>' + (lkBool(f.sistem) ? ' <span title="Field sistem">' + icon('lock', 12) + '</span>' : '') + '</td>' +
           '<td class="nm">' + esc(f.label) + (f.turunan ? '<span class="sub">otomatis: ' + esc(f.turunan) + '</span>' : (f.tampil_jika ? '<span class="sub">tampil bersyarat</span>' : '')) + '</td>' +
           '<td>' + esc(f.grup) + (f.seksi ? '<span class="sub">' + esc(f.seksi) + '</span>' : '') + '</td><td class="c"><span class="pill s-NEUTRAL">' + esc(f.tipe) + '</span></td>' +
@@ -453,20 +460,31 @@ var Master = (function () {
           '<td class="c">' + (x.aktif ? '<span class="pill s-TERKUNCI">Aktif</span>' : '<span class="pill s-NEUTRAL">Nonaktif</span>') + '</td></tr>';
       }).join('') || '<tr><td colspan="9" class="tbl-empty">Belum ada template.</td></tr>') + '</tbody></table></div></div>' +
       '<section class="acc"><button class="acc-h">' + icon('list', 20) + '<h3>Daftar Penanda (untuk ditulis di Google Docs)</h3><span class="chev">' + icon('chevD', 16) + '</span></button><div class="acc-b">' +
-      '<input class="input" data-phq placeholder="Cari penanda…" style="max-width:360px"><div class="help mt-s">Klik untuk menyalin. Format tambahan: ' + LK_FORMATS.map(function (f) { return '<span class="code-chip">|' + f + '</span>'; }).join(' ') + ' — contoh <span class="code-chip">{{akad_tanggal|hari}}</span>, <span class="code-chip">{{catin_nama|huruf_besar}}</span>. Penanda <b>catin_*</b> otomatis merujuk catin pengajuan (suami/istri), <b>pasangan_*</b> ke pasangannya.</div>' +
-      '<div data-phlist class="mt-s" style="display:flex;flex-wrap:wrap;gap:6px;max-height:420px;overflow:auto"></div></div></section></div>';
+      '<div class="row" style="gap:12px;flex-wrap:wrap"><input class="input" data-phq placeholder="Cari penanda…" style="max-width:360px"><label class="check"><input type="checkbox" data-phall>Tampilkan juga penanda teknis</label></div><div class="help mt-s">Klik untuk menyalin. Format tambahan: ' + LK_FORMATS.map(function (f) { return '<span class="code-chip">|' + f + '</span>'; }).join(' ') + ' — contoh <span class="code-chip">{{akad_tanggal|hari}}</span>, <span class="code-chip">{{catin_nama|huruf_besar}}</span>. Penanda <b>catin_*</b> otomatis merujuk catin pengajuan (suami/istri), <b>pasangan_*</b> ke pasangannya.</div>' +
+      '<div data-phlist class="mt-s ph-groups"></div></div></section></div>';
     App.bindRefresh(main);
     main.querySelector('[data-reg]').onclick = function () { registerTemplate(null, main); };
     var acc = main.querySelector('.acc');
     acc.querySelector('.acc-h').onclick = function () { acc.classList.toggle('open'); };
     var drawPh = function () {
       var q = main.querySelector('[data-phq]').value.toLowerCase();
-      main.querySelector('[data-phlist]').innerHTML = S.master.fields.filter(function (f) { return lkBool(f.aktif) && (!q || (f.field_key + ' ' + f.label).toLowerCase().indexOf(q) >= 0); }).map(function (f) {
-        return '<span class="code-chip" data-ph="' + esc(f.field_key) + '" title="' + esc(f.label + ' — ' + f.grup) + '">{{' + esc(f.field_key) + '}}</span>';
-      }).join('');
+      var semua = main.querySelector('[data-phall]').checked;
+      var by = {};
+      S.master.fields.filter(function (f) { return lkBool(f.aktif) && (!q || (f.field_key + ' ' + f.label).toLowerCase().indexOf(q) >= 0); }).forEach(function (f) {
+        var g = phGroup(f.field_key);
+        if (g < 0 && !semua) return;
+        (by[g < 0 ? PH_GROUPS.length : g] = by[g < 0 ? PH_GROUPS.length : g] || []).push(f);
+      });
+      main.querySelector('[data-phlist]').innerHTML = Object.keys(by).sort(function (a, b) { return a - b; }).map(function (gi) {
+        var g = PH_GROUPS[gi] || { t: 'Lainnya (teknis — jarang dipakai di surat)', h: 'Isian mentah formulir; biasanya cukup memakai penanda di kelompok atas.' };
+        return '<div class="ph-g"><div class="ph-gt"><b>' + esc(g.t) + '</b><span>' + esc(g.h) + '</span></div><div class="ph-chips">' + by[gi].map(function (f) {
+          return '<span class="code-chip" data-ph="' + esc(f.field_key) + '" title="' + esc(f.label) + '">{{' + esc(f.field_key) + '}}<small>' + esc(f.label) + '</small></span>';
+        }).join('') + '</div></div>';
+      }).join('') || '<span class="muted">Tidak ada penanda.</span>';
       UI.$$('[data-ph]', main).forEach(function (c) { c.onclick = function () { UI.copyText('{{' + c.dataset.ph + '}}'); }; });
     };
     main.querySelector('[data-phq]').addEventListener('input', UI.debounce(drawPh, 200));
+    main.querySelector('[data-phall]').onchange = drawPh;
     drawPh();
     UI.$$('[data-kode]', main).forEach(function (b) {
       b.onclick = function () {
@@ -483,6 +501,25 @@ var Master = (function () {
         UI.menu(b, x.kode + ' — ' + x.show.nama, items);
       };
     });
+  }
+
+  /** v1.5: kelompok penanda menurut kegunaan di surat. -1 = teknis (disembunyikan bawaan). */
+  var PH_GROUPS = [
+    { t: 'Desa & KUA', h: 'Kop, nomor & tanggal surat, kepala desa, modin.', re: /^(sys_|adm_)/ },
+    { t: 'Jadwal Akad', h: 'Hari/tanggal, jam, tempat akad.', re: /^akad_/ },
+    { t: 'Catin pengajuan ini', h: 'Untuk surat per catin (N1, N5, N6, Pernyataan Status): otomatis calon suami atau calon istri.', re: /^catin_(?!ayah_|ibu_|izin_|mantan_|cerai_|dok_|kematian_)/ },
+    { t: 'Pasangan catin', h: 'Calon pasangan dari catin pengajuan ini.', re: /^pasangan_/ },
+    { t: 'Orang tua catin', h: 'Ayah & ibu catin pengajuan ini.', re: /^catin_(ayah|ibu)_/ },
+    { t: 'Pemberi izin (N5)', h: 'Bila kedua orang tua meninggal / tidak diketahui keberadaannya.', re: /^catin_izin_/ },
+    { t: 'Status perkawinan & mantan', h: 'Cerai hidup / cerai mati, masa iddah, surat tidak merujuk.', re: /^(catin_(mantan|cerai|dok|kematian)_|ks_suami_(mantan_nama|cerai_nomor|cerai_tanggal|cerai_pengadilan)$|suami_iddah_mantan_selesai$|istri_iddah_selesai$)/ },
+    { t: 'Calon Suami', h: 'Surat berisi kedua catin (N2, N4, SPTJM, Ceklist).', re: /^suami_(?!alamat$|rt$|rw$|desa$|kecamatan$|kabupaten$|provinsi$|syibhul)/ },
+    { t: 'Calon Istri', h: 'Surat berisi kedua catin (N2, N4, SPTJM, Ceklist, Berita Acara Wali).', re: /^istri_(?!alamat$|rt$|rw$|desa$|kecamatan$|kabupaten$|provinsi$)/ },
+    { t: 'Wali Nikah', h: 'Wali nasab / hakim (Berita Acara Pemeriksaan Wali, SPTJM).', re: /^wali_(?!mafqud_|alamat$|rt$|rw$|desa$|kecamatan$|kabupaten$|provinsi$)/ },
+    { t: 'Wali tidak diketahui keberadaannya', h: 'Surat Pernyataan Wali Nasab Tidak Diketahui Keberadaannya.', re: /^wali_mafqud_/ }
+  ];
+  function phGroup(key) {
+    for (var i = 0; i < PH_GROUPS.length; i++) if (PH_GROUPS[i].re.test(key)) return i;
+    return -1;
   }
 
   async function toggleTpl(kode, aktif, tid, main) {
@@ -657,11 +694,94 @@ var Master = (function () {
       }).join('') + '</tbody></table></div></div>';
   }
 
+  /* ---- v1.5: Aturan Paket sederhana — satu kartu per surat: Jenis · Untuk · Kapan ---- */
+  var KAPAN = [
+    { v: 'SELALU', l: 'Selalu', s: 'selalu', mode: 'SELALU', peran: 'SEMUA', k: [] },
+    { v: 'ISTRI', l: 'Bila pengajuan memuat calon istri', s: 'bila pengajuan memuat calon istri', mode: 'SELALU', peran: 'ISTRI;SUAMI_ISTRI', k: [] },
+    { v: 'U21', l: 'Catin belum 21 tahun', s: 'bila catin belum 21 tahun saat akad', mode: 'KONDISI', peran: 'SEMUA', k: [{ field: 'catin_umur_saat_akad', op: '<', nilai: '21' }] },
+    { v: 'MATI', l: 'Catin Cerai Mati', s: 'bila catin berstatus Cerai Mati', mode: 'KONDISI', peran: 'SEMUA', k: [{ field: 'catin_status_perkawinan', op: '=', nilai: LK_CERAI_MATI }] },
+    { v: 'MAFQUD', l: 'Wali hakim — wali tidak diketahui keberadaannya', s: 'bila wali hakim karena wali tidak diketahui keberadaannya', mode: 'KONDISI', peran: 'ISTRI;SUAMI_ISTRI',
+      k: [{ field: 'wali_jenis', op: '=', nilai: 'Hakim' }, { field: 'wali_hakim_alasan', op: '=', nilai: LK_WALI_HAKIM[2] }] },
+    { v: 'SYIBHUL', l: 'Calon suami cerai talak masih dalam iddah mantan istri (syibhul iddah)', s: 'bila calon suami dalam syibhul iddah', mode: 'KONDISI', peran: 'SUAMI;SUAMI_ISTRI', k: [{ field: 'suami_syibhul_iddah', op: '=', nilai: 'Ya' }] }
+  ];
+  function kapanDari(r) {
+    var sig = function (k) { return JSON.stringify((k || []).map(function (c) { return [c.field, c.op, lkStr(c.nilai)]; }).sort()); };
+    var rk = sig(lkJson(r.kondisi_json, [])), rp = lkStr(r.berlaku_untuk_peran) || 'SEMUA';
+    var x = KAPAN.find(function (o) { return o.mode === r.mode && o.peran === rp && (o.mode === 'SELALU' || sig(o.k) === rk); });
+    return x ? x.v : 'LANJUTAN';
+  }
+  function kalimatAturan(r) {
+    var k = KAPAN.find(function (o) { return o.v === kapanDari(r); });
+    var j = lkStr(r.berlaku_untuk_jenis);
+    return (j === 'NIKAH_DI_KUA' ? 'Nikah di wilayah' : j === 'REKOMENDASI_KELUAR' ? 'Rekomendasi' : 'Semua jenis pengajuan') + ' · ' +
+      (r.lingkup === 'PER_CATIN' ? 'satu untuk setiap catin warga desa' : 'satu per pengajuan') + ' · ' + (k ? k.s : 'kondisi khusus: ' + describe(r.logika, lkJson(r.kondisi_json, [])));
+  }
   function drawRules(box, main) {
+    var tplK = kodes().filter(function (x) { return x.aktif; }).sort(function (a, b) { return Number(a.show.urutan_paket) - Number(b.show.urutan_paket); });
+    box.innerHTML = '<div class="stack"><div class="banner neutral">' + icon('info') + '<div class="txt">Atur setiap surat dengan 3 pilihan: <b>Jenis</b> pengajuan, <b>Untuk</b> (sekali per pengajuan atau setiap catin), dan <b>Kapan</b> surat masuk paket. Perubahan langsung tersimpan.</div></div>' +
+      '<div class="rule-cards">' + tplK.map(function (x) {
+        var rs = S.master.rules.filter(function (r) { return r.template_kode === x.kode; });
+        var r = rs.length === 1 ? rs[0] : null;
+        var kap = r ? kapanDari(r) : (rs.length ? 'LANJUTAN' : 'SELALU');
+        var rumit = rs.length > 1 || kap === 'LANJUTAN';
+        var akt = r ? lkBool(r.aktif) : rs.some(function (q) { return lkBool(q.aktif); });
+        var head = '<div class="rc-h"><span class="rc-no">' + esc(x.show.urutan_paket) + '</span><div class="rc-t"><b class="mono">' + esc(x.kode) + '</b><span>' + esc(x.show.nama) + '</span></div>' +
+          (rumit ? '' : '<label class="switch" title="Masuk paket"><input type="checkbox" data-rc-aktif' + (r && akt ? ' checked' : '') + '></label>') + '</div>';
+        if (rumit) {
+          return '<div class="card rule-card" data-rc="' + esc(x.kode) + '">' + head + '<div class="rc-b"><div class="rc-sum">' + rs.map(function (q) { return '<div>' + (lkBool(q.aktif) ? '' : '<span class="tag gray">Nonaktif</span> ') + esc(kalimatAturan(q)) + '</div>'; }).join('') + '</div>' +
+            '<div class="row mt-s"><span class="tag">Lanjutan</span><button class="btn btn-sm" data-rc-lanjut>' + icon('sliders', 14) + 'Atur di Lanjutan</button></div></div></div>';
+        }
+        var j = r ? lkStr(r.berlaku_untuk_jenis) || 'SEMUA' : 'SEMUA';
+        return '<div class="card rule-card' + (r && akt ? '' : ' off') + '" data-rc="' + esc(x.kode) + '">' + head + '<div class="rc-b"><div class="rc-grid">' +
+          '<div class="field"><label>Jenis</label><select class="select" data-rc-j>' + UI.options([{ v: 'SEMUA', l: 'Semua jenis' }, { v: 'NIKAH_DI_KUA', l: 'Di wilayah' }, { v: 'REKOMENDASI_KELUAR', l: 'Rekomendasi' }], j.indexOf(';') >= 0 ? 'SEMUA' : j) + '</select></div>' +
+          '<div class="field"><label>Untuk</label><select class="select" data-rc-u>' + UI.options([{ v: 'SEKALI', l: 'Sekali' }, { v: 'PER_CATIN', l: 'Per catin (×2)' }], r ? r.lingkup || 'SEKALI' : 'SEKALI') + '</select></div>' +
+          '<div class="field full"><label>Kapan</label><select class="select" data-rc-k>' + UI.options(KAPAN.map(function (o) { return { v: o.v, l: o.l }; }).concat([{ v: 'LANJUTAN', l: 'Kondisi khusus (Lanjutan)…' }]), kap) + '</select></div></div>' +
+          '<div class="rc-sum muted" data-rc-sum>' + (r ? (akt ? '' : 'Tidak masuk paket · ') + esc(kalimatAturan(r)) : 'Belum diatur — surat ini belum pernah masuk paket. Pilih di atas untuk mengaktifkan.') + '</div></div></div>';
+      }).join('') + '</div>' +
+      '<section class="acc" data-lanjut><button class="acc-h">' + icon('sliders', 20) + '<h3>Lanjutan: peta paket &amp; aturan khusus</h3><span class="chev">' + icon('chevD', 16) + '</span></button><div class="acc-b" data-lanjutbody></div></section></div>';
+    var acc = box.querySelector('[data-lanjut]');
+    acc.querySelector('.acc-h').onclick = function () { acc.classList.toggle('open'); };
+    drawRulesLanjut(acc.querySelector('[data-lanjutbody]'), main);
+    UI.$$('[data-rc]', box).forEach(function (card) {
+      var kode = card.dataset.rc;
+      var lj = card.querySelector('[data-rc-lanjut]');
+      if (lj) { lj.onclick = function () { acc.classList.add('open'); acc.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; return; }
+      var simpan = function (pakaiLanjut) {
+        var rs = S.master.rules.filter(function (q) { return q.template_kode === kode; });
+        var r = rs[0] || null;
+        var k = KAPAN.find(function (o) { return o.v === card.querySelector('[data-rc-k]').value; });
+        if (pakaiLanjut || !k) {
+          card.querySelector('[data-rc-k]').value = r ? kapanDari(r) : 'SELALU';
+          return editRule(r || { template_kode: kode, mode: 'KONDISI', logika: 'SEMUA', kondisi_json: '[]', berlaku_untuk_jenis: 'SEMUA', berlaku_untuk_peran: 'SEMUA', lingkup: 'SEKALI', aktif: 'TRUE' }, main);
+        }
+        var aktifBox = card.querySelector('[data-rc-aktif]');
+        var data = { rule_id: r ? r.rule_id : '', template_kode: kode, mode: k.mode, logika: 'SEMUA', kondisi: k.k, berlaku_untuk_jenis: card.querySelector('[data-rc-j]').value,
+          berlaku_untuk_peran: k.peran, lingkup: card.querySelector('[data-rc-u]').value, aktif: r ? aktifBox.checked : true, keterangan: r ? r.keterangan : '' };
+        if (!r) aktifBox.checked = true;
+        // Optimistic UI: ringkasan langsung berubah, simpan di latar belakang
+        var tmp = { mode: data.mode, kondisi_json: JSON.stringify(data.kondisi), berlaku_untuk_peran: data.berlaku_untuk_peran, berlaku_untuk_jenis: data.berlaku_untuk_jenis, lingkup: data.lingkup, logika: 'SEMUA' };
+        var sum = card.querySelector('[data-rc-sum]');
+        sum.innerHTML = (data.aktif ? '' : 'Tidak masuk paket · ') + esc(kalimatAturan(tmp)) + ' <span class="rc-st">menyimpan…</span>';
+        card.classList.toggle('off', !data.aktif);
+        API.call('saveRule', data).then(function (res) {
+          if (!res.success) { UI.toast(res.message, 'error'); return aturan(main); }
+          setMaster(res.data.master);
+          var st = card.querySelector('.rc-st');
+          if (st) { st.textContent = '✓ tersimpan'; st.classList.add('ok'); }
+        });
+      };
+      card.querySelector('[data-rc-k]').onchange = function () { simpan(this.value === 'LANJUTAN'); };
+      card.querySelector('[data-rc-j]').onchange = function () { simpan(false); };
+      card.querySelector('[data-rc-u]').onchange = function () { simpan(false); };
+      card.querySelector('[data-rc-aktif]').onchange = function () { simpan(false); };
+    });
+  }
+
+  function drawRulesLanjut(box, main) {
     var tplK = kodes();
     var noRule = tplK.filter(function (x) { return x.aktif && !S.master.rules.some(function (r) { return r.template_kode === x.kode && lkBool(r.aktif); }); });
     box.innerHTML = '<div class="stack">' +
-      '<div class="banner neutral">' + icon('info') + '<div class="txt">Aturan menentukan surat yang dicetak untuk setiap kombinasi <b>Jenis Pengajuan × Pengajuan Untuk</b>. Contoh: <b>N5</b> muncul bila <i>Umur Catin saat Akad &lt; 21</i>. Gunakan field <b>catin_*</b> agar aturan merujuk catin yang bersangkutan. Lingkup <b>Per catin</b> pada pengajuan Suami &amp; Istri mencetak surat untuk masing-masing catin.</div></div>' +
+      '<div class="banner neutral">' + icon('info') + '<div class="txt">Untuk kebutuhan khusus: satu surat boleh punya beberapa aturan dengan kondisi bebas (field, pembanding, nilai). Gunakan field <b>catin_*</b> agar aturan merujuk catin yang bersangkutan.</div></div>' +
       matrixHtml(tplK) +
       (noRule.length ? '<div class="banner warn">' + icon('alert') + '<div class="txt">Template aktif tanpa aturan (tidak akan pernah muncul di paket): <b>' + noRule.map(function (x) { return esc(x.kode); }).join(', ') + '</b></div></div>' : '') +
       '<div class="row"><button class="btn btn-primary" data-newrule>' + icon('plus') + 'Tambah Aturan</button></div>' +

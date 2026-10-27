@@ -209,16 +209,19 @@ var Pengajuan = (function () {
           draw();
         }
         var gagal = state.filter(function (s) { return s.st === 'fail'; });
-        if (gagal.length) m.root.querySelector('[data-retry]').classList.remove('hidden');
+        // v1.5: 100% tanpa kegagalan → langsung lanjut ke tampilan berikutnya (tanpa tombol Selesai)
+        if (!gagal.length) { setTimeout(selesai, 450); return; }
+        m.root.querySelector('[data-retry]').classList.remove('hidden');
         var d = m.root.querySelector('[data-done]');
         d.classList.remove('hidden');
-        d.textContent = gagal.length ? 'Tutup' : 'Selesai';
+        d.textContent = 'Tutup';
       };
-      m.root.querySelector('[data-retry]').onclick = run;
-      m.root.querySelector('[data-done]').onclick = function () {
+      var selesai = function () {
         m.close();
         resolve({ ok: state.filter(function (s) { return s.st === 'ok'; }).map(function (s) { return s.k; }), gagal: state.filter(function (s) { return s.st === 'fail'; }).map(function (s) { return s.k; }) });
       };
+      m.root.querySelector('[data-retry]').onclick = run;
+      m.root.querySelector('[data-done]').onclick = selesai;
       draw();
       run();
     });

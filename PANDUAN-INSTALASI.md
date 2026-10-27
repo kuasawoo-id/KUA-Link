@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.4
+# Panduan Instalasi — KUA-Link v1.5
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -24,7 +24,7 @@ Struktur Google Drive setelah setup:
 
 ---
 
-## Alur Kerja v1.4 (ringkas)
+## Alur Kerja (ringkas, v1.4 + perubahan v1.5 di bagian berikut)
 
 - **Menu desa:** Dashboard · Pengajuan Nikah · **Riwayat Pengajuan** · Profil Desa · Panduan Singkat.
 - **HP:** tanpa sidebar. Navigasi bawah: **Dashboard · Riwayat · ⊕ (tombol bulat tengah) · Profil · Panduan**.
@@ -35,13 +35,56 @@ Struktur Google Drive setelah setup:
   - Langkah 1: Jenis & Pengajuan Untuk; **Kepala Desa | Modin**, lalu **Nomor Surat | Tanggal Surat**; jadwal akad.
   - Pengajuan baru **baru tercatat sebagai Draf** setelah Jadwal Akad terisi (jenis, pengajuan untuk, tanggal akad).
   - **Tanggal akad paling cepat sehari sesudah tanggal surat** (tanggal surat dan sebelumnya disilang di kalender).
-  - Langkah 2–3 dibagi tab Calon | Ayah | Ibu (+ Pemberi Izin) (+ Wali Nikah). Bin/binti otomatis dari nama ayah. Pekerjaan dari 106 jenis KTP-el.
+  - Langkah 2–3 dibagi tab Calon Suami | Ayah Calon Suami | Ibu Calon Suami (+ Pemberi Izin); Calon Istri | Ayah Calon Istri | Ibu Calon Istri (+ Pemberi Izin) | Wali Nikah. Bin/binti otomatis dari nama ayah. Pekerjaan dari 106 jenis KTP-el.
 - **Masa iddah** dicek otomatis (Bagian I).
 - **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
 - **Lonceng:** desa = draf yang belum selesai (ketuk untuk melanjutkan) + pemberitahuan KUA; Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
 - Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
 
-## Sudah Memasang v1.3? → Upgrade ke v1.4 (data tetap)
+## Yang Baru di v1.5
+
+- **Header:** tombol **Segarkan** (data master + riwayat + notifikasi sekaligus) dan **Mode Malam** di sebelah lonceng. Pilihan mode tersimpan di perangkat.
+- **HP:** kartu angka dashboard, grafik bulanan, dan aktivitas terbaru tidak lagi bertumpuk (grafik & aktivitas menjadi satu kolom).
+- **Login tetap masuk** sampai menekan **Keluar** (sesi disimpan di sheet `Sesi`; token disimpan sebagai hash). Reset password / nonaktif akun oleh Admin tetap mengeluarkan sesi.
+- **Formulir:**
+  - Tempat/alamat akad terisi otomatis **hanya** untuk *Nikah di Wilayah Kec. Sawoo* (Kantor KUA → Balai Nikah; Luar Kantor → alamat calon istri). **Rekomendasi → kosong**, diketik desa.
+  - **Nomor HP/WhatsApp** di tab Calon Suami dan tab Calon Istri.
+  - **Status perkawinan Dukcapil:** Belum Kawin · Kawin (suami) · **Cerai Hidup** · **Cerai Mati**.
+  - Tulisan "Bin: … otomatis" di bawah nama catin dihapus.
+  - Label **Binti (Ayah Mantan Istri)** / **Bin (Ayah Mantan Suami)** — cukup nama ayahnya; di surat otomatis "binti …"/"bin …".
+  - **Tanggal Akta Kematian** dihapus (cukup nomor akta & tanggal meninggal).
+  - Tombol "Sama dengan Calon Suami" di alamat calon istri dihapus.
+  - **Wali hakim karena wali tidak diketahui keberadaannya:** muncul 3 isian — **Hubungan** (urutan wali nasab), **Nama**, **Bin**. Bila *Bapak kandung*, nama & bin otomatis dari tab Ayah Calon Istri.
+  - **Suami Cerai Talak:** isian **Pengadilan Agama Penerbit Akta Cerai** (tidak selalu PA Ponorogo).
+  - **Warga negara** orang tua (selalu tampil), wali, dan pemberi izin.
+  - Ayah/ibu **tidak diketahui keberadaannya** → alamat di surat: "Tidak diketahui keberadaannya".
+  - Peringatan langsung berubah mengikuti isian (diperbaiki → hilang; tidak diperbaiki → tetap).
+- **Selesai:** progres 100% langsung lanjut (tanpa tombol Selesai) → paket PDF terunduh **dan terbuka di tab baru** → tombol hijau **Selesai & Tutup** → kembali ke **Riwayat Pengajuan**.
+- **Nomor WA ke Akad Tracker & LABUKU Desk:** pengajuan *Calon Suami* → HP calon suami; *Calon Istri* atau *Calon Suami & Istri* → HP calon istri (sama untuk wilayah maupun rekomendasi).
+- **Data Master:**
+  - **Aturan Paket** = satu kartu per surat: **Jenis** · **Untuk** (sekali / per catin) · **Kapan** (pilihan siap pakai). Kondisi bebas pindah ke **Lanjutan**.
+  - **Daftar Penanda** dikelompokkan menurut kegunaan (Desa & KUA, Jadwal Akad, Catin, Pasangan, Orang Tua, Pemberi Izin, Status & Mantan, Calon Suami, Calon Istri, Wali, Wali tidak diketahui). Penanda teknis disembunyikan (bisa ditampilkan).
+  - **Field Surat** dikelompokkan per grup formulir; bawaan hanya isian formulir (turunan bisa dipilih).
+- **11 template resmi** dari folder `01_Template_Sumber` dipasang sebagai versi baru (Bagian L). Format penanda baru: `|tgl` `|bulan` `|tahun` `|opsional`.
+- **Desa Uji Coba** + 8 pengajuan contoh untuk mencoba template (Bagian M). Desa uji tidak dikirim ke Akad Tracker / LABUKU Desk.
+
+## Sudah Memasang v1.4? → Upgrade ke v1.5
+
+> Urutan penting. Jalankan fungsi dari editor Apps Script KUA-Link (pilih fungsi → ▶ Run → lihat Execution log).
+
+1. **KUA-Link (Apps Script):** ganti isi 8 berkas `.gs` (`Aturan, Dokumen, Integrasi, Kode, Laporan, Master, Pengajuan, Setup`). `appsscript.json` sama. Simpan.
+2. Run **`upgradeV15`** — membuat sheet **Sesi**, mengganti field sistem ke v1.5 (field buatan Admin tidak disentuh; field lama dinonaktifkan), dan mengubah "Duda/Janda Cerai Hidup/Mati" → "Cerai Hidup/Cerai Mati" di data pengajuan & aturan.
+3. Run **`pasangTemplateV15`** — membaca 11 berkas di `01_Template_Sumber` bernama `<nomor>. <KODE> - <Nama>` (mis. `2. N1 - Surat Pengantar Nikah`), menyesuaikan isinya (Bagian L), membekukan, dan mengaktifkannya sebagai **versi baru** dengan **urutan paket = nomor berkas**. Aturan paket 11 surat diganti aturan bawaan v1.5. Log menampilkan ✓ untuk setiap penyesuaian.
+4. Run **`resetDataUji`** — ⚠️ **menghapus SEMUA pengajuan, PDF, paket, notifikasi, riwayat pengajuan, dan status integrasi** (termasuk hasil coba di Desa Bondrang), mengulang nomor pengajuan dari 00001, lalu membuat **Desa Uji Coba** (`desa.ujicoba` / password awal desa) berisi 8 pengajuan contoh. Akun, desa, modin, template, field, aturan, hari libur, dan pengaturan **tidak** dihapus.
+5. **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**.
+6. **Frontend:** salin dulu `GAS_URL` dari `js/config.js` → ekstrak ZIP v1.5 (timpa) → tempel kembali `GAS_URL` → `git add .` → `git commit -m "KUA-Link v1.5"` → `git push`. Aplikasi terpasang (PWA) menampilkan "Versi baru tersedia → Muat ulang".
+7. **Akad Tracker (v2.3.2):** ganti isi `KUALink` **dan** `Code.gs` (kolom baru `no_wa_catin`, SCHEMA 16 — dibuat otomatis saat dibuka) → Deploy versi baru. Frontend: ganti `js/app.js` (tombol **Kirim ke Catin** langsung ke nomor WA catin) → push.
+8. **LABUKU Desk:** ganti isi `KUALink` (v2.1: nomor HP catin ke Pemohon & Antrean) → Deploy versi baru. `Kode.gs` & frontend tidak berubah dari paket v1.4.
+9. Login `desa.ujicoba` → buka setiap pengajuan contoh → **Validasi → Simpan & Cetak** → periksa PDF setiap template.
+
+---
+
+## Sudah Memasang v1.3? → Upgrade ke v1.4 (data tetap), lalu lanjut ke v1.5 di atas
 
 1. **KUA-Link (Apps Script):** ganti isi 9 berkas `.gs` (`appsscript.json` sama dengan v1.3). Simpan.
 2. Pilih fungsi **`upgradeV14`** → **▶ Run**. Fungsi ini:
@@ -58,7 +101,7 @@ Struktur Google Drive setelah setup:
 
 ## Sudah Memasang v1.2? → Upgrade TANPA instal ulang (data tetap)
 
-> Dari v1.2: kerjakan langkah di bawah (upgradeV13), **lalu** langsung jalankan **`upgradeV14`** sebelum deploy, dan pakai ZIP frontend v1.4.
+> Dari v1.2: kerjakan langkah di bawah (upgradeV13), **lalu** `upgradeV14`, **lalu** langkah v1.5 (`upgradeV15` → `pasangTemplateV15` → `resetDataUji`) sebelum deploy, dan pakai ZIP frontend v1.5.
 
 1. Di proyek Apps Script yang **sama**:
    - Ganti isi semua berkas `.gs` **dan `appsscript.json`** dengan versi v1.3. `appsscript.json` wajib diganti: ada izin baru `script.external_request` untuk mengirim data ke Akad Tracker & LABUKU Desk; tanpa itu kiriman gagal.
@@ -503,3 +546,35 @@ Hasil di LABUKU Desk (v1.4 — **masuk biasa, bukan Pending**):
 - Tidak ada trigger di Akad Tracker/LABUKU Desk. Satu-satunya trigger integrasi adalah `kirimUlangIntegrasi` di KUA-Link: tiap 5 menit, **hanya ada selama masih ada kiriman gagal**.
 - Pemindahan antrean KL-… di LABUKU Desk berjalan sekali per hari (dicatat di cache), jadi tidak memperlambat Front Office.
 - Kuota `UrlFetchApp` akun Google gratis: 20.000 panggilan/hari, jauh di atas kebutuhan 14 desa.
+
+
+---
+
+## L. 11 Template Surat (v1.5)
+
+Nama berkas di `01_Template_Sumber` = `<nomor>. <KODE> - <Nama Surat>`. **Nomor berkas = urutan di paket.**
+
+| No | Kode | Kapan masuk paket (bawaan) | Penyesuaian otomatis oleh `pasangTemplateV15` |
+|---|---|---|---|
+| 1 | CEKLIST | Selalu · sekali per pengajuan | Modin → `{{adm_modin}}`; No. WA kiri → `{{suami_no_hp}}`, kanan → `{{istri_no_hp}}`; Tgl Daftar & Waktu tetap kosong |
+| 2 | N1 | Selalu · per catin | No. 9: "bin/binti" tetap dihapus → `{{catin_mantan_bin\|opsional}}` (otomatis "binti X"/"bin X", kosong bila belum kawin); kewarganegaraan ayah & ibu → `{{catin_ayah_kewarganegaraan}}` / `{{catin_ibu_kewarganegaraan}}` |
+| 3 | N2 | Selalu · sekali | — |
+| 4 | N4 | Selalu · sekali | — |
+| 5 | N5 | Catin < 21 tahun · per catin | — |
+| 6 | N6 | Catin Cerai Mati · per catin | Bin/Binti almarhum → `{{catin_mantan_ayah}}` (nama saja) |
+| 7 | BA_WALI | Nikah di wilayah & pengajuan memuat calon istri · sekali | "Pada hari ini … tanggal … bulan … tahun …" = tanggal surat (`\|hari` `\|tgl` `\|bulan` `\|tahun`); "nasab … / hakim" → `{{wali_penetapan}}`; kalimat & sebab wali hakim hanya muncul untuk wali hakim; "Sawoo, ……" → tanggal surat |
+| 8 | SPTJM | Selalu · sekali per pasangan (wilayah & rekomendasi) | Kewarganegaraan wali → `{{wali_kewarganegaraan}}` |
+| 9 | SP_STATUS | Selalu · per catin | — |
+| 10 | SP_WALI_MAFQUD | Wali hakim karena wali tidak diketahui keberadaannya · sekali | Hubungan / Nama / Bin → `{{wali_mafqud_hubungan}}` `{{wali_mafqud_nama}}` `{{wali_mafqud_bin}}` |
+| 11 | SP_TIDAK_RUJUK | Calon suami dalam syibhul iddah · sekali | "Pengadilan Agama Ponorogo" → `{{ks_suami_cerai_pengadilan}}` |
+
+- Penyesuaian aman dijalankan ulang (yang sudah diubah dilewati). Bila log menampilkan "·" (tidak ditemukan) — teks di Docs berbeda dari pola; ubah manual di Docs lalu daftarkan versi baru di **Data Master → Template Surat**.
+- `pasangTemplateV15` menolak mengaktifkan bila ada penanda yang tidak dikenal (pesan menyebut kode surat & penandanya).
+- BA_WALI berisi nama pemeriksa tertulis tetap di Docs — ubah langsung di Docs bila pemeriksa berganti.
+
+## M. Desa Uji Coba
+
+- Akun **`desa.ujicoba`**, password = password awal desa (AppConfig `PASSWORD_DESA_AWAL`, bawaan `kuasawoojaya`), tidak wajib ganti.
+- 8 skenario: (1) wilayah · calon istri · wali bapak kandung; (2) wilayah · suami & istri · istri 19 th (N5) · wali kakek; (3) wali hakim — ayah tidak diketahui keberadaannya (SP mafqud otomatis dari data ayah); (4) wali hakim — saudara laki-laki tidak diketahui keberadaannya (isian manual); (5) rekomendasi · suami cerai hidup (talak, PA Madiun) dalam syibhul iddah; (6) rekomendasi · istri cerai mati (N6); (7) wilayah · suami cerai mati; (8) rekomendasi · suami & istri 20 th, orang tua suami meninggal (pemberi izin kakek).
+- Pengajuan Desa Uji Coba **tidak dikirim** ke Akad Tracker / LABUKU Desk (status integrasi: "Desa Uji Coba — tidak dikirim").
+- Ingin mengulang dari bersih? Jalankan `resetDataUji` lagi (menghapus SEMUA pengajuan).
