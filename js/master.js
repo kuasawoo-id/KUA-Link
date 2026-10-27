@@ -511,6 +511,7 @@ var Master = (function () {
     { t: 'Pasangan catin', h: 'Calon pasangan dari catin pengajuan ini.', re: /^pasangan_/ },
     { t: 'Orang tua catin', h: 'Ayah & ibu catin pengajuan ini.', re: /^catin_(ayah|ibu)_/ },
     { t: 'Pemberi izin (N5)', h: 'Bila kedua orang tua meninggal / tidak diketahui keberadaannya.', re: /^catin_izin_/ },
+    { t: 'Surat Izin Orang Tua (N5)', h: 'Kolom Ayah & Ibu N5: otomatis diganti penanggung jawab bila kedua orang tua meninggal / tidak diketahui.', re: /^n5_/ },
     { t: 'Status perkawinan & mantan', h: 'Cerai hidup / cerai mati, masa iddah, surat tidak merujuk.', re: /^(catin_(mantan|cerai|dok|kematian)_|ks_suami_(mantan_nama|cerai_nomor|cerai_tanggal|cerai_pengadilan)$|suami_iddah_mantan_selesai$|istri_iddah_selesai$)/ },
     { t: 'Calon Suami', h: 'Surat berisi kedua catin (N2, N4, SPTJM, Ceklist).', re: /^suami_(?!alamat$|rt$|rw$|desa$|kecamatan$|kabupaten$|provinsi$|syibhul)/ },
     { t: 'Calon Istri', h: 'Surat berisi kedua catin (N2, N4, SPTJM, Ceklist, Berita Acara Wali).', re: /^istri_(?!alamat$|rt$|rw$|desa$|kecamatan$|kabupaten$|provinsi$)/ },

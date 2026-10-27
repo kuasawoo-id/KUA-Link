@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.5
+# Panduan Instalasi — KUA-Link v1.5.1
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -40,6 +40,22 @@ Struktur Google Drive setelah setup:
 - **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
 - **Lonceng:** desa = draf yang belum selesai (ketuk untuk melanjutkan) + pemberitahuan KUA; Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
 - Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
+
+## Perbaikan v1.5.1 (dari v1.5)
+
+1. Ganti isi **4 berkas** `.gs`: `Aturan`, `Dokumen`, `Kode`, `Setup` (4 berkas lain sama dengan v1.5). Simpan.
+2. Run **`upgradeV151`** sekali. Fungsi ini memasang field otomatis baru (aman diulang), lalu menyesuaikan & mengaktifkan **versi baru** 5 template di `01_Template_Sumber`. Aturan paket tidak diubah. Lihat Execution log: setiap penyesuaian bertanda ✓; tanda · berarti pola tidak ditemukan dan perlu diubah manual.
+   - **CEKLIST:** Tempat → *Kantor KUA / Luar Kantor KUA (Bedolan)*; Wali → `NASAB / <NAMA WALI>` atau `HAKIM`; Hubungan/Sebab → nasab: hubungan saja; hakim: sebab saja, kecuali wali tidak diketahui keberadaannya (`<hubungan wali yang hilang> / <sebab>`). Garis miring hanya muncul bila keduanya ada. **Tulisan panjang di sel tabel diperkecil otomatis (minimal 6 pt), tabel tidak diubah.**
+   - **N1:** baris **Bin** di bawah nama ayah dan **Binti** di bawah nama ibu.
+   - **N5:** kolom Ayah/Ibu memakai penanda `{{n5_ayah_*}}` / `{{n5_ibu_*}}`. Orang tua yang meninggal/tidak diketahui hanya nama & bin/binti. Bila **keduanya** meninggal/tidak diketahui → kolom Ayah diisi **penanggung jawab** (kolom Ibu bila penanggung jawabnya Nenek), kolom lain kosong.
+   - **SPTJM:** baris `C. | Wali Nikah (Nasab/Hakim) | : | <hubungan wali / sebab wali hakim>` (titik dua sejajar baris data); kewarganegaraan wali terisi.
+   - **SP_WALI_MAFQUD:** baris kedua alamat calon istri sejajar dengan baris pertama.
+3. Semua surat: orang tua **meninggal** → hanya nama & bin/binti (lainnya kosong, bukan "-"); **tidak diketahui keberadaannya** → nama, bin/binti, alamat "Tidak diketahui keberadaannya".
+4. Simpan & Cetak: layar tetap di KUA-Link selama progres; tab baru berisi paket PDF dibuka **sesudah paket siap**. Bila browser memblokir, muncul tombol **Buka Paket PDF** — izinkan pop-up untuk situs KUA-Link agar selanjutnya otomatis.
+5. Deploy → Manage deployments → Edit → **New version** → Deploy. Frontend: ekstrak ZIP v1.5.1 (jaga `GAS_URL`) → push.
+6. Pengajuan yang sudah dicetak sebelumnya: buka lalu **Cetak Paket PDF** agar surat dibuat ulang dengan versi template baru.
+
+Akad Tracker & LABUKU Desk **tidak berubah** dari v1.5.
 
 ## Yang Baru di v1.5
 

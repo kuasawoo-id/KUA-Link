@@ -161,6 +161,8 @@ function lkAlamatLengkap(data, prefix) {
  *  PASANGAN:<pola>               {p} = pasangannya
  *  MANTAN_BIN:<pola>             "binti X"/"bin X" dari nama ayah mantan pasangan catin (kosong bila tidak ada)
  *  WALI:penetapan | sebab_judul  kalimat Berita Acara Pemeriksaan Wali
+ *  WALI:ceklist | hubungan_sebab | hubungan_atau_sebab   isian Ceklist & SPTJM (v1.5.1)
+ *  N5:<ayah|ibu>_<field>         Surat Izin (N5): ayah/ibu catin; bila keduanya meninggal/tidak diketahui → penanggung jawab
  * Otomatis juga:
  *  - nama ayah/ibu yang meninggal diberi akhiran (Alm)/(Almh)
  *  - wali nasab "Bapak kandung" = data Ayah Calon Istri
@@ -189,6 +191,15 @@ function lkDerive(data, fields, ctx) {
     var nm = lkStr(out[p + '_nama']);
     if (nm && lkStr(out[p + '_status_keberadaan']) === LK_MENINGGAL && !/\(alm/i.test(nm)) out[p + '_nama'] = nm + (p.indexOf('ayah') === 0 ? ' (Alm)' : ' (Almh)');
   });
+  // v1.5.1: orang tua meninggal / tidak diketahui keberadaannya → di surat hanya nama & bin/binti
+  // (alamat: "Tidak diketahui keberadaannya" bila tidak diketahui). Kunci di _kosong dicetak kosong (bukan "-").
+  var kos = out._kosong = {};
+  LK_ORTU.forEach(function (p) {
+    var st = lkStr(out[p + '_status_keberadaan']);
+    if (!st || st === LK_ADA) return;
+    ['nik', 'kewarganegaraan', 'tempat_lahir', 'tanggal_lahir', 'agama', 'pekerjaan'].concat(LK_DOMISILI).forEach(function (s) { out[p + '_' + s] = ''; kos[p + '_' + s] = 1; });
+    if (st !== LK_TIDAK_DIKETAHUI) kos[p + '_alamat_lengkap'] = 1;
+  });
   var list = fields || [];
   var iddah = lkIddah(out, cfg);
   // Tahap 1: umur, alamat, sistem, bin/binti, iddah
@@ -207,6 +218,15 @@ function lkDerive(data, fields, ctx) {
       var wj = lkStr(out.wali_jenis);
       if (arg === 'penetapan') out[f.field_key] = wj === 'Nasab' ? 'nasab ' + lkStr(out.wali_hubungan) : wj === 'Hakim' ? 'hakim' : '';
       else if (arg === 'sebab_judul') out[f.field_key] = wj === 'Hakim' ? 'Adapun sebab wali hakim sebagai berikut :' : '';
+      // v1.5.1 Ceklist: Wali = "Nasab / <nama wali>" atau "Hakim"
+      else if (arg === 'ceklist') out[f.field_key] = wj === 'Nasab' ? 'Nasab' + (lkStr(out.wali_nama) ? ' / ' + lkStr(out.wali_nama) : '') : wj === 'Hakim' ? 'Hakim' : '';
+      // v1.5.1 Ceklist: Hubungan/Sebab — nasab: hubungan; hakim: sebab (+ hubungan wali yang tidak diketahui keberadaannya). "/" hanya bila keduanya ada
+      else if (arg === 'hubungan_sebab') {
+        var hs = wj === 'Nasab' ? [out.wali_hubungan] : wj === 'Hakim' ? [lkStr(out.wali_hakim_alasan) === LK_WALI_HAKIM[2] ? out.wali_mafqud_hubungan : '', out.wali_hakim_alasan] : [];
+        out[f.field_key] = hs.map(lkStr).filter(Boolean).join(' / ');
+      }
+      // v1.5.1 SPTJM: nasab → hubungan wali; hakim → sebab wali hakim
+      else if (arg === 'hubungan_atau_sebab') out[f.field_key] = wj === 'Nasab' ? lkStr(out.wali_hubungan) : wj === 'Hakim' ? lkStr(out.wali_hakim_alasan) : '';
     }
     else if (jenis === 'BIN') out[f.field_key] = lkTanpaAlm(out[arg + '_nama']);
     else if (jenis === 'IDDAH_SELESAI') out[f.field_key] = iddah[arg] ? iddah[arg].selesai : '';
@@ -226,13 +246,23 @@ function lkDerive(data, fields, ctx) {
 function lkPerspective(out, fields, me) {
   if (me !== 'suami' && me !== 'istri') me = lkStr(out.peran_catin) === 'ISTRI' ? 'istri' : 'suami';
   var other = me === 'suami' ? 'istri' : 'suami';
+  var kos = out._kosong = lkCopy(out._kosong || {});   // salinan per sudut pandang (suami/istri)
+  var salin = function (key, src) {
+    out[key] = lkStr(out[src]);
+    if (kos[src]) kos[key] = 1; else delete kos[key];
+  };
+  var n5 = lkN5Sumber(out, me);
   (fields || []).forEach(function (f) {
     var t = lkStr(f.turunan);
     if (!t) return;
     var i = t.indexOf(':');
     var jenis = t.slice(0, i), arg = t.slice(i + 1);
     if (jenis === 'CATIN' || jenis === 'PASANGAN') {
-      out[f.field_key] = lkStr(out[arg.replace(/\{p\}/g, jenis === 'CATIN' ? me : other)]);
+      salin(f.field_key, arg.replace(/\{p\}/g, jenis === 'CATIN' ? me : other));
+    } else if (jenis === 'N5') {
+      var j = arg.indexOf('_'), src = n5[arg.slice(0, j)];
+      if (src) salin(f.field_key, src + '_' + arg.slice(j + 1));
+      else { out[f.field_key] = ''; kos[f.field_key] = 1; }
     } else if (jenis === 'MANTAN_BIN') {
       // v1.5: "binti <ayah mantan istri>" (catin suami) / "bin <ayah mantan suami>" (catin istri); kosong bila belum pernah kawin
       var mb = lkStr(out[arg.replace(/\{p\}/g, me)]);
@@ -244,6 +274,24 @@ function lkPerspective(out, fields, me) {
     }
   });
   return out;
+}
+
+/**
+ * v1.5.1 Surat Izin (N5): sumber data kolom Ayah & Ibu. Normal = ayah & ibu catin (yang meninggal / tidak
+ * diketahui hanya nama & bin/binti). Bila KEDUANYA meninggal / tidak diketahui → penanggung jawab
+ * (Nenek di kolom Ibu, selain itu di kolom Ayah); kolom lainnya kosong.
+ */
+function lkN5Sumber(d, me) {
+  var ada = function (p) { var s = lkStr(d[p + '_' + me + '_status_keberadaan']); return !s || s === LK_ADA; };
+  if (ada('ayah') || ada('ibu')) return { ayah: 'ayah_' + me, ibu: 'ibu_' + me };
+  var pj = 'izin_' + me;
+  return lkStr(d[pj + '_hubungan']) === 'Nenek' ? { ayah: '', ibu: pj } : { ayah: pj, ibu: '' };
+}
+
+/** Nilai penanda untuk dicetak di surat: kunci yang ditandai kosong (_kosong) dicetak kosong, bukan "-". */
+function lkNilaiSurat(der, key, field, fmt) {
+  if (der && der._kosong && der._kosong[key]) return '';
+  return lkFormat(der ? der[key] : '', field, fmt);
 }
 
 function lkCompare(a, b) {
@@ -685,6 +733,6 @@ if (typeof module !== 'undefined' && module.exports) {
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
     lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
-    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin, lkNilaiSurat: lkNilaiSurat, lkN5Sumber: lkN5Sumber
   };
 }

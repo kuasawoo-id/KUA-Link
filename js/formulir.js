@@ -818,9 +818,9 @@ var Formulir = (function () {
       renderSteps(); renderBody();
       return UI.toast('Masih ada ' + se.list.length + ' isian yang perlu dilengkapi/diperbaiki.', 'error');
     }
-    // v1.5 (desa): tab baru dibuka saat klik (agar tidak diblokir pop-up) → paket PDF tampil di situ setelah terunduh
-    var win = App.isKua() ? null : UI.preOpen('Menyiapkan paket PDF — tab ini menampilkan paket surat setelah selesai dibuat…');
-    var tutupWin = function () { try { if (win && !win.closed) win.close(); } catch (e) { /* abaikan */ } win = null; };
+    // v1.5.1: tetap di tab KUA-Link selama surat dibuat (progres terlihat); tab baru dibuka setelah paket siap
+    var win = null;
+    var tutupWin = function () { };
     await UI.busy(btn, async function () {
       var saved = await serverSave(true);
       if (!saved || !W.id) { tutupWin(); return UI.toast('Gagal menyimpan ke server. Coba lagi.', 'error'); }
@@ -886,11 +886,12 @@ var Formulir = (function () {
     try {
       var blob = await Pengajuan.buildPackage(id, st);
       UI.downloadBlob(blob, id + '_paket.pdf');
-      // v1.5: paket langsung dibuka di tab baru (tab disiapkan saat tombol Simpan & Cetak ditekan)
-      var buka = '';
-      if (win && !win.closed) { win.location.href = URL.createObjectURL(blob); }
-      else { var bu = URL.createObjectURL(blob); buka = ' <a class="btn btn-sm" href="' + bu + '" target="_blank" rel="noopener">' + icon('eye', 15) + 'Buka Paket PDF</a>'; }
-      set('Paket PDF terunduh &amp; dibuka di tab baru. Mengirim ke KUA…' + buka);
+      // v1.5.1: paket sudah siap & terunduh → baru dibuka di tab baru. Bila browser memblokir pop-up, tampil tombol Buka.
+      var bu = URL.createObjectURL(blob), terbuka = null;
+      try { terbuka = window.open(bu, '_blank'); } catch (eo) { terbuka = null; }
+      var buka = ' <a class="btn btn-sm" href="' + bu + '" target="_blank" rel="noopener">' + icon('eye', 15) + 'Buka Paket PDF</a>';
+      if (!terbuka) UI.toast('Browser memblokir tab baru — tekan "Buka Paket PDF". Agar otomatis: izinkan pop-up untuk situs ini.', 'warning');
+      set((terbuka ? 'Paket PDF terunduh &amp; dibuka di tab baru.' : 'Paket PDF terunduh.') + ' Mengirim ke KUA…' + buka);
       var r = await Pengajuan.uploadPaket(id, blob);
       if (!r.success) return set('<span style="color:var(--danger)">' + esc(r.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>' + buka, false), bindRetry();
       var opened = Pengajuan.openWa(r.data.wa);
@@ -900,7 +901,6 @@ var Formulir = (function () {
         '<a class="btn btn-sm" href="' + esc(r.data.paket_url) + '" target="_blank" rel="noopener">' + icon('file', 15) + 'Tautan PDF</a></div>' +
         '<div class="mt-s">' + Pengajuan.integrasiHtml(r.data.integrasi) + '</div>' + (buka ? '<div class="mt-s">' + buka + '</div>' : ''), true);
     } catch (e) {
-      if (win && !win.closed && win.location.href === 'about:blank') win.close();
       set('<span style="color:var(--danger)">' + esc(e.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>', false);
       bindRetry();
     }
