@@ -178,45 +178,75 @@ var Pengajuan = (function () {
   }
 
   /* ---------------- PEMBUAT DOKUMEN (progres per surat) ---------------- */
-  /** Buat dokumen satu per satu agar tidak melewati batas waktu Apps Script. Resolve {ok:[], gagal:[]} */
-  function generateDocs(id, kodes, title) {
+  /** v1.5.2: PDF hasil generateDoc disimpan di memori → paket digabung tanpa mengunduh ulang setiap surat. */
+  var PDF_CACHE = {};
+  var PARALEL = 3;   // surat dibuat bersamaan (Apps Script melayani beberapa permintaan sekaligus)
+
+  /**
+   * Buat surat dengan progres. v1.5.2: 3 surat sekaligus (lebih cepat), PDF disimpan di memori.
+   * opts.siapkan(): dijalankan sesudah 100% tanpa kegagalan (mis. menggabungkan paket) sebelum tombol Selesai.
+   * opts.onSelesai(): dipanggil saat tombol Selesai DIKLIK (gestur pengguna → unduh & buka tab baru tidak diblokir).
+   * Resolve {ok:[], gagal:[]}.
+   */
+  function generateDocs(id, kodes, title, opts) {
+    opts = opts || {};
     return new Promise(function (resolve) {
       var tpl = {};
       S.master.templates.forEach(function (t) { if (lkBool(t.aktif)) tpl[t.kode] = t.nama; });
       var nm = function (key) { var x = lkSplitKey(key); return (tpl[x.kode] || '') + (x.untuk ? ' — ' + lkUntukLabel(x.untuk) : ''); };
       var state = kodes.map(function (k) { return { k: k, st: 'wait', msg: '' }; });
+      var tahap = '';
       var m = UI.modal({ title: title || 'Membuat dokumen…', icon: 'fileCheck', sticky: true, body: '<div data-pb></div>', foot: '<button class="btn hidden" data-retry>' + icon('refresh') + 'Ulangi yang Gagal</button><button class="btn btn-primary hidden" data-done>Selesai</button>' });
       m.root.dataset.sticky = '1';
       m.root.querySelector('.x').remove();
       var draw = function () {
-        var done = state.filter(function (s) { return s.st === 'ok'; }).length;
-        m.root.querySelector('[data-pb]').innerHTML = '<div class="row" style="justify-content:space-between"><b>' + done + ' dari ' + state.length + ' surat</b><span class="muted">' + Math.round(done / state.length * 100) + '%</span></div>' +
-          '<div class="progress mt-s"><div style="width:' + (done / state.length * 100) + '%"></div></div><div class="plist">' +
+        var done = state.filter(function (s) { return s.st === 'ok'; }).length, total = state.length || 1;
+        var pct = state.length ? Math.round(done / total * 100) : 100;
+        m.root.querySelector('[data-pb]').innerHTML = '<div class="row" style="justify-content:space-between"><b>' + done + ' dari ' + state.length + ' surat</b><span class="muted">' + pct + '%</span></div>' +
+          '<div class="progress mt-s"><div style="width:' + pct + '%"></div></div><div class="plist">' +
           state.map(function (s) {
             var ic = s.st === 'ok' ? '<span style="color:var(--emerald)">' + icon('check', 18) + '</span>' : s.st === 'run' ? '<span class="spin" style="display:inline-block;width:16px;height:16px;border:2px solid var(--emerald);border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></span>' : s.st === 'fail' ? '<span style="color:var(--danger)">' + icon('xCircle', 18) + '</span>' : '<span class="muted">○</span>';
             return '<div><span class="st">' + ic + '</span><span><b>' + esc(lkSplitKey(s.k).kode) + '</b> ' + esc(nm(s.k)) + (s.msg ? ' <span class="muted">— ' + esc(s.msg) + '</span>' : '') + '</span></div>';
-          }).join('') + '</div><p class="muted" style="font-size:12.5px;margin-bottom:0">±5–10 detik per surat. Jangan tutup halaman ini.</p>';
+          }).join('') + '</div><p class="muted" style="font-size:12.5px;margin-bottom:0">' + (tahap ? esc(tahap) : (state.length ? PARALEL + ' surat dibuat bersamaan. Jangan tutup halaman ini.' : 'Semua surat sudah sesuai data terbaru.')) + '</p>';
+      };
+      var satu = async function (s) {
+        s.st = 'run'; s.msg = ''; draw();
+        var r = await API.call('generateDoc', { id: id, kode: s.k }, { timeout: 120000 });
+        if (r.success) {
+          s.st = 'ok'; s.msg = 'v' + r.data.versi_dokumen;
+          if (r.data.pdf_base64) PDF_CACHE[r.data.dokumen_id] = r.data.pdf_base64;
+        } else { s.st = 'fail'; s.msg = r.message; }
+        draw();
       };
       var run = async function () {
         m.root.querySelector('[data-retry]').classList.add('hidden');
         m.root.querySelector('[data-done]').classList.add('hidden');
-        for (var i = 0; i < state.length; i++) {
-          if (state[i].st === 'ok') continue;
-          state[i].st = 'run'; state[i].msg = ''; draw();
-          var r = await API.call('generateDoc', { id: id, kode: state[i].k }, { timeout: 120000 });
-          if (r.success) { state[i].st = 'ok'; state[i].msg = 'v' + r.data.versi_dokumen; }
-          else { state[i].st = 'fail'; state[i].msg = r.message; }
+        var antre = state.filter(function (s) { return s.st !== 'ok'; });
+        var pekerja = function () { var s = antre.shift(); return s ? satu(s).then(pekerja) : Promise.resolve(); };
+        var jalan = [];
+        for (var i = 0; i < Math.min(PARALEL, antre.length); i++) jalan.push(pekerja());
+        await Promise.all(jalan);
+        var gagal = state.filter(function (s) { return s.st === 'fail'; });
+        var d = m.root.querySelector('[data-done]');
+        if (gagal.length) {
+          m.root.querySelector('[data-retry]').classList.remove('hidden');
+          d.classList.remove('hidden');
+          d.textContent = 'Tutup';
+          return;
+        }
+        // 100%: siapkan paket (bila diminta) lalu tampilkan tombol Selesai
+        if (opts.siapkan) {
+          tahap = 'Menggabungkan paket PDF…'; draw();
+          try { await opts.siapkan(); tahap = 'Paket PDF siap. Tekan Selesai untuk mengunduh & membuka paket.'; }
+          catch (e) { tahap = 'Paket belum bisa digabung: ' + (e && e.message ? e.message : e) + ' — bisa diulang lewat Cetak Paket PDF.'; }
           draw();
         }
-        var gagal = state.filter(function (s) { return s.st === 'fail'; });
-        // v1.5: 100% tanpa kegagalan → langsung lanjut ke tampilan berikutnya (tanpa tombol Selesai)
-        if (!gagal.length) { setTimeout(selesai, 450); return; }
-        m.root.querySelector('[data-retry]').classList.remove('hidden');
-        var d = m.root.querySelector('[data-done]');
         d.classList.remove('hidden');
-        d.textContent = 'Tutup';
+        d.textContent = 'Selesai';
+        d.focus();
       };
       var selesai = function () {
+        if (opts.onSelesai && !state.some(function (s) { return s.st === 'fail'; })) { try { opts.onSelesai(); } catch (e) { /* abaikan */ } }
         m.close();
         resolve({ ok: state.filter(function (s) { return s.st === 'ok'; }).map(function (s) { return s.k; }), gagal: state.filter(function (s) { return s.st === 'fail'; }).map(function (s) { return s.k; }) });
       };
@@ -244,10 +274,14 @@ var Pengajuan = (function () {
     if (!st.success) throw new Error(st.message);
     var aktif = sortDocs(st.data.dokumen.filter(function (d) { return d.aktif; }));
     if (!aktif.length) throw new Error('Belum ada dokumen untuk dicetak.');
-    var pdfs = await Promise.all(aktif.map(function (d) { return API.call('getDocPdf', { dokumen_id: d.dokumen_id }); }));
+    // v1.5.2: surat yang baru dibuat sudah ada di memori → hanya surat lama yang diunduh
+    var pdfs = await Promise.all(aktif.map(function (d) {
+      return PDF_CACHE[d.dokumen_id] ? Promise.resolve({ success: true, data: { base64: PDF_CACHE[d.dokumen_id] } }) : API.call('getDocPdf', { dokumen_id: d.dokumen_id });
+    }));
     var bad = pdfs.find(function (r) { return !r.success; });
     if (bad) throw new Error(bad.message);
-    return UI.mergePdf(pdfs.map(function (r) { return { base64: r.data.base64 }; }), pdfs[0].data.dibatalkan ? 'DIBATALKAN' : '');
+    var batal = (find(id) || {}).status === 'DIBATALKAN' || pdfs.some(function (r) { return r.data.dibatalkan; });
+    return UI.mergePdf(pdfs.map(function (r) { return { base64: r.data.base64 }; }), batal ? 'DIBATALKAN' : '');
   }
 
   async function printPackage(id, btn, regenerated) {
@@ -266,11 +300,19 @@ var Pengajuan = (function () {
         return printPackage(id, null, true);
       }
       var blob = await buildPackage(id, st);
-      UI.openBlob(blob, win, id + '_paket.pdf');
+      UI.openBlob(blob, win, namaPaket(id));
       // Surat baru dibuat ulang (data berubah) → perbarui tautan PDF & data di KUA / Akad Tracker / LABUKU Desk di latar belakang
       if (regenerated && p.status === 'SELESAI') uploadPaket(id, blob).then(function (r) { if (r.success) UI.toast('Berkas di KUA ikut diperbarui.', 'info'); });
     };
     try { await (btn ? UI.busy(btn, work) : work()); } catch (e) { if (win) win.close(); UI.toast(e.message, 'error'); }
+  }
+
+  /** v1.5.2: nama berkas paket = Kode_Desa_Suami_Istri.pdf */
+  function namaPaket(id) {
+    var p = find(id) || {};
+    var istri = p.peran_catin === 'ISTRI';
+    var bersih = function (x) { return String(x || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); };
+    return [id, bersih(App.desaName(p.desa_id)), bersih(istri ? p.nama_pasangan : p.nama_catin), bersih(istri ? p.nama_catin : p.nama_pasangan)].filter(Boolean).join('_') + '.pdf';
   }
 
   /* ---------------- KIRIM KE KUA (WhatsApp + Akad Tracker + LABUKU Desk) ---------------- */
@@ -377,7 +419,7 @@ var Pengajuan = (function () {
     renderList: renderList, actionMenu: actionMenu, cancel: cancel, reactivate: reactivate,
     linkPartner: linkPartner, generateDocs: generateDocs, printPackage: printPackage, sortDocs: sortDocs, peranLabel: peranLabel,
     buildPackage: buildPackage, uploadPaket: uploadPaket, openWa: openWa, waUrl: waUrl, integrasiHtml: integrasiHtml, kirimKua: kirimKua, kirimModal: kirimModal,
-    downloadDoc: downloadDoc, jenisLabel: jenisLabel, find: find, exportExcel: exportExcel, tplOrder: tplOrder
+    downloadDoc: downloadDoc, jenisLabel: jenisLabel, find: find, exportExcel: exportExcel, tplOrder: tplOrder, namaPaket: namaPaket
   };
 })();
 

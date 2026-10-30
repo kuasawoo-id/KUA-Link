@@ -811,3 +811,9 @@ table.tbl { width: 100%; border-collapse: collapse; background: var(--surface); 
 :root[data-theme="dark"] .tbl tr.grp-row td { color: #6EE7A8; }
 :root[data-theme="dark"] .ph-gt b, :root[data-theme="dark"] .rc-no { color: #6EE7A8; }
 :root[data-theme="dark"] img { opacity: .92; }
+
+/* v1.5.2: tiga tombol sejajar di kotak kirim (Kirim WhatsApp · Tampilkan PDF · Salin Link) */
+.kb-act { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kb-act .btn { width: 100%; padding: 0 10px; white-space: normal; line-height: 1.2; text-align: center; min-height: 42px; height: auto; }
+.kb-act:has(> :only-child) { grid-template-columns: minmax(0, 220px); }
+@media (max-width: 480px) { .kb-act .btn { font-size: 12.5px; gap: 5px; padding: 6px; } .kb-act .btn svg { width: 15px; height: 15px; } }

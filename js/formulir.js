@@ -49,7 +49,9 @@ var Formulir = (function () {
   function defaults() {
     var desa = S.desa || {};
     var ml = lkModinList(desa);
-    var d = { adm_tanggal_surat: UI.today(), adm_kepala_desa: desa.kepala_desa, adm_nomor_surat: desa.nomor_surat_terakhir, adm_modin: ml.length === 1 ? ml[0].nama : '' };
+    var ttd = '';
+    try { ttd = localStorage.getItem('lk_ttd_' + (desa.desa_id || '')) || ''; } catch (e) { ttd = ''; }   // v1.5.2: pilihan tanda tangan terakhir desa ini
+    var d = { adm_tanggal_surat: UI.today(), adm_kepala_desa: desa.kepala_desa, adm_nomor_surat: desa.nomor_surat_terakhir, adm_modin: ml.length === 1 ? ml[0].nama : '', adm_ttd: ttd || 'BASAH' };
     var known = lkFieldMap(fields()), out = {};
     Object.keys(d).forEach(function (k) { if (known[k] && d[k]) out[k] = d[k]; });
     return out;
@@ -516,7 +518,7 @@ var Formulir = (function () {
 
   function bindWarn(root) {
     UI.$$('[data-fix]', root).forEach(function (b) {
-      b.onclick = function () { setVal(b.dataset.fix, b.dataset.fixv, b, 'select'); UI.toast('Tanggal diubah ke ' + lkTanggalPanjang(b.dataset.fixv) + '.', 'info'); };
+      b.onclick = function () { setVal(b.dataset.fix, b.dataset.fixv, b, 'select'); UI.toast(lkParseDate(b.dataset.fixv) ? 'Tanggal diubah ke ' + lkTanggalPanjang(b.dataset.fixv) + '.' : 'Diubah: ' + b.textContent.trim() + '.', 'info'); };
     });
     UI.$$('[data-gostep]', root).forEach(function (a) {
       a.onclick = function (e) { e.preventDefault(); var n = Number(a.dataset.gostep); W.step = n; W.visited[n] = true; W.errSteps[n] = true; render(); el().querySelector('.ov-scroll').scrollTop = 0; };
@@ -661,6 +663,7 @@ var Formulir = (function () {
     if (v === '' || v === null) delete W.data[k]; else W.data[k] = v;
     W.dirtyServer = true; setSaveStatus('local');
     autoFill(k);
+    if (k === 'adm_ttd' && v) { try { localStorage.setItem('lk_ttd_' + ((S.desa || {}).desa_id || ''), v); } catch (e) { /* abaikan */ } }   // v1.5.2: ingat pilihan desa
     saveLocal();
     var fe = input && input.closest && input.closest('.field');
     if (fe && fe.classList.contains('err')) { fe.classList.remove('err'); var m = fe.querySelector('.msg'); if (m) m.remove(); }
@@ -728,7 +731,7 @@ var Formulir = (function () {
 
   function renderBottom() {
     var box = el().querySelector('.ov-bottom');
-    if (W.finished) { box.innerHTML = '<div class="end"><button class="btn btn-primary" data-close>' + icon('check', 16) + 'Selesai &amp; Tutup</button></div>'; box.querySelector('[data-close]').onclick = function () { close(true); }; return; }
+    if (W.finished) { box.innerHTML = '<div class="end"><button class="btn btn-primary" data-close>Tutup</button></div>'; box.querySelector('[data-close]').onclick = function () { close(true); }; return; }
     var right = '';
     var tabs = W.step === 2 || W.step === 3 ? visibleGroups(W.step) : [];
     var ti = tabs.findIndex(function (g) { return g.key === W.sub[W.step]; });
@@ -781,7 +784,7 @@ var Formulir = (function () {
         }).join('') + (errs.length > 12 ? '<div class="muted">… ' + (errs.length - 12) + ' lainnya</div>' : '') + '</div>' : '') +
         (rows ? '<div class="kv' + (errs.length ? ' mt-s' : '') + '">' + rows + '</div>' : '') + '</div></section>';
     };
-    var waliTxt = lkPeranHas(der, 'istri') ? (f('wali_jenis') + (der.wali_jenis === 'Nasab' ? (der.wali_nama ? ' — ' + der.wali_nama : '') + (der.wali_hubungan ? ' (' + der.wali_hubungan + ')' : '') : der.wali_hakim_alasan ? ' — ' + der.wali_hakim_alasan : '')) : 'Diisi pada pengajuan calon istri';
+    var waliTxt = lkWaliPerlu(der) ? (f('wali_jenis') + (der.wali_jenis === 'Nasab' ? (der.wali_nama ? ' — ' + der.wali_nama : '') + (der.wali_hubungan ? ' (' + der.wali_hubungan + ')' : '') : der.wali_hakim_alasan ? ' — ' + der.wali_hakim_alasan : '')) : 'Diisi pada pengajuan calon istri';
     var left = sumCard(1, 'Jadwal Akad', App.kv('Jenis', f('jenis_pengajuan')) + App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Kepala Desa', f('adm_kepala_desa')) + App.kv('Modin', der.adm_modin || '–') +
       App.kv('Nomor / Tanggal Surat', (der.adm_nomor_surat || '–') + ' / ' + f('adm_tanggal_surat')) + App.kv('Hari, Tanggal Akad', der.akad_tanggal ? lkHari(der.akad_tanggal) + ', ' + lkTanggalPanjang(der.akad_tanggal) : '–') +
       App.kv('Jam · Tempat', [der.akad_jam ? der.akad_jam + ' WIB' : '', der.akad_tempat].filter(Boolean).join(' · ') || '–')) +
@@ -836,11 +839,22 @@ var Formulir = (function () {
       clearLocal();
       App.upsertRow(r.data.row);
       var id = W.id;
-      var res = r.data.needed.length ? await Pengajuan.generateDocs(id, r.data.needed, 'Menyiapkan surat ' + id) : { ok: [], gagal: [] };
+      // v1.5.2: surat dibuat (3 sekaligus) → paket PDF digabung di latar → tombol Selesai.
+      // Klik Selesai (gestur pengguna) → unduh + buka tab baru seketika (tidak diblokir pop-up) → tampilan berikutnya.
+      var desaU = !App.isKua(), paket = null;
+      var res = await Pengajuan.generateDocs(id, r.data.needed, 'Menyiapkan surat ' + id, {
+        siapkan: desaU ? async function () { paket = await Pengajuan.buildPackage(id); } : null,
+        onSelesai: function () {
+          if (!paket) return;
+          UI.downloadBlob(paket, Pengajuan.namaPaket(id));
+          paket.url = URL.createObjectURL(paket);
+          try { paket.tab = window.open(paket.url, '_blank'); } catch (e) { paket.tab = null; }
+        }
+      });
       if (!W || W.id !== id) return tutupWin();
       if (res.gagal.length) tutupWin();
       W.finished = true;
-      renderSuccess(res, win);
+      renderSuccess(res, paket);
     });
   }
 
@@ -867,7 +881,6 @@ var Formulir = (function () {
     if (!box) return;
     if (!r.success) { box.innerHTML = ''; if (win && !win.closed) win.close(); return; }
     if (desa && !res.gagal.length) autoKirim(id, r, sc, win);
-    else if (win && !win.closed) win.close();
     var aktif = Pengajuan.sortDocs(r.data.dokumen.filter(function (d) { return d.aktif; }));
     box.innerHTML = '<div class="doclist">' + aktif.map(function (d) {
       return '<div class="docitem"><span class="ic">' + icon('fileCheck', 18) + '</span><div class="nm"><b>' + esc(d.template_kode) + ' — ' + esc(d.template_nama) + (d.untuk ? ' (' + lkUntukLabel(d.untuk) + ')' : '') + '</b><span>Versi ' + esc(d.versi_dokumen) + ' · ' + UI.waktu(d.dibuat_pada) + '</span></div>' +
@@ -880,26 +893,32 @@ var Formulir = (function () {
    * Setelah Simpan & Cetak berhasil (desa): paket PDF lengkap diunduh otomatis → diunggah ke Drive
    * (tautan) → dikirim ke Akad Tracker / LABUKU Desk → WhatsApp KUA dibuka (bukti daftar + tautan PDF).
    */
-  async function autoKirim(id, st, sc, win) {
+  async function autoKirim(id, st, sc, paket) {
     var kb = sc.querySelector('[data-kirim]');
     var set = function (html, ok) { if (!kb || !document.body.contains(kb)) return; kb.classList.toggle('done', !!ok); var sp = kb.querySelector('.spin-s'); if (sp && ok !== undefined) sp.remove(); kb.querySelector('.kb-b').innerHTML = html; };
     try {
-      var blob = await Pengajuan.buildPackage(id, st);
-      UI.downloadBlob(blob, id + '_paket.pdf');
-      // v1.5.1: paket sudah siap & terunduh → baru dibuka di tab baru. Bila browser memblokir pop-up, tampil tombol Buka.
-      var bu = URL.createObjectURL(blob), terbuka = null;
-      try { terbuka = window.open(bu, '_blank'); } catch (eo) { terbuka = null; }
-      var buka = ' <a class="btn btn-sm" href="' + bu + '" target="_blank" rel="noopener">' + icon('eye', 15) + 'Buka Paket PDF</a>';
-      if (!terbuka) UI.toast('Browser memblokir tab baru — tekan "Buka Paket PDF". Agar otomatis: izinkan pop-up untuk situs ini.', 'warning');
-      set((terbuka ? 'Paket PDF terunduh &amp; dibuka di tab baru.' : 'Paket PDF terunduh.') + ' Mengirim ke KUA…' + buka);
+      var blob = paket, terbuka = paket && paket.tab;
+      if (!blob) {   // paket belum disiapkan di langkah progres (mis. gagal digabung) → gabung & unduh sekarang
+        blob = await Pengajuan.buildPackage(id, st);
+        UI.downloadBlob(blob, Pengajuan.namaPaket(id));
+        blob.url = URL.createObjectURL(blob);
+        try { terbuka = window.open(blob.url, '_blank'); } catch (eo) { terbuka = null; }
+      }
+      var bu = blob.url || URL.createObjectURL(blob);
+      var tampil = '<a class="btn" href="' + bu + '" target="_blank" rel="noopener">' + icon('eye', 16) + 'Tampilkan PDF</a>';
+      if (!terbuka) UI.toast('Browser memblokir tab baru — tekan "Tampilkan PDF".', 'warning');
+      set((terbuka ? 'Paket PDF terunduh &amp; dibuka di tab baru.' : 'Paket PDF terunduh.') + ' Mengirim ke KUA…<div class="kb-act mt-s">' + tampil + '</div>');
       var r = await Pengajuan.uploadPaket(id, blob);
-      if (!r.success) return set('<span style="color:var(--danger)">' + esc(r.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>' + buka, false), bindRetry();
+      if (!r.success) return set('<span style="color:var(--danger)">' + esc(r.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button><div class="kb-act mt-s">' + tampil + '</div>', false), bindRetry();
       var opened = Pengajuan.openWa(r.data.wa);
+      // v1.5.2: tiga tombol sejajar — Kirim WhatsApp · Tampilkan PDF · Salin Link
       set((opened ? '<b>WhatsApp KUA sudah dibuka</b> — tinggal tekan Kirim. ' : 'Tekan tombol hijau untuk mengirim pemberitahuan ke KUA. ') +
         (r.data.wa && !r.data.wa.nomor ? '<br><span style="color:var(--warn-text)">Nomor WhatsApp KUA belum diatur Admin — pilih kontak KUA manual.</span>' : '') +
-        '<div class="row mt-s" style="gap:8px;flex-wrap:wrap"><a class="btn btn-wa" href="' + esc(Pengajuan.waUrl(r.data.wa)) + '" target="_blank" rel="noopener">' + icon('chat') + 'Kirim WhatsApp ke KUA</a>' +
-        '<a class="btn btn-sm" href="' + esc(r.data.paket_url) + '" target="_blank" rel="noopener">' + icon('file', 15) + 'Tautan PDF</a></div>' +
-        '<div class="mt-s">' + Pengajuan.integrasiHtml(r.data.integrasi) + '</div>' + (buka ? '<div class="mt-s">' + buka + '</div>' : ''), true);
+        '<div class="kb-act mt-s"><a class="btn btn-wa" href="' + esc(Pengajuan.waUrl(r.data.wa)) + '" target="_blank" rel="noopener">' + icon('chat', 16) + 'Kirim WhatsApp</a>' + tampil +
+        '<button type="button" class="btn" data-salin>' + icon('copy', 16) + 'Salin Link</button></div>' +
+        '<div class="mt-s">' + Pengajuan.integrasiHtml(r.data.integrasi) + '</div>', true);
+      var sl = kb && kb.querySelector('[data-salin]');
+      if (sl) sl.onclick = function () { UI.copyText(r.data.paket_url); };
     } catch (e) {
       set('<span style="color:var(--danger)">' + esc(e.message) + '</span> <button class="btn btn-sm" data-retry>Coba Lagi</button>', false);
       bindRetry();

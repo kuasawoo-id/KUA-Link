@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.5.1
+# Panduan Instalasi — KUA-Link v1.5.2
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -40,6 +40,32 @@ Struktur Google Drive setelah setup:
 - **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
 - **Lonceng:** desa = draf yang belum selesai (ketuk untuk melanjutkan) + pemberitahuan KUA; Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
 - Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
+
+## Pembaruan v1.5.2 (dari v1.5.1)
+
+1. Ganti isi **5 berkas** `.gs`: `Aturan`, `Dokumen`, `Integrasi`, `Kode`, `Setup` (`Laporan`, `Master`, `Pengajuan` sama). Simpan.
+2. Run **`upgradeV152`** sekali (aman diulang). Isinya:
+   - field baru **Tanda Tangan Kepala Desa** (Tanda Tangan Basah / TTE Srikandi) dan pilihan status ayah **"-"**;
+   - aturan **Berita Acara Pemeriksaan Wali** berlaku juga untuk pengajuan **calon suami** yang nikah di wilayah Kec. Sawoo (tab Wali Nikah ikut tampil);
+   - versi baru template bertanda tangan Kepala Desa (N1, N6, SP_STATUS, SP_WALI_MAFQUD): penanda `{{ttd_kepala_desa|opsional}}` disisipkan di tengah ruang tanda tangan (antara jabatan dan nama); N1: `{{adm_nomor_surat}}` → `{{nomor_surat_desa}}`.
+3. Deploy → Manage deployments → Edit → **New version** → Deploy. Frontend: ekstrak ZIP v1.5.2 (jaga `GAS_URL`) → push.
+
+**Satu template untuk dua cara tanda tangan** (tidak perlu dua berkas Docs):
+
+| Penanda di Docs | Tanda Tangan Basah | TTE Srikandi |
+|---|---|---|
+| `{{nomor_surat_desa}}` (hanya N1) | nomor surat yang diketik desa | `${nomor_naskah}` |
+| `{{ttd_kepala_desa\|opsional}}` | kosong (ruang tanda tangan) | `${ttd_pengirim}` |
+
+- Pilihan tanda tangan diingat per perangkat desa (pengajuan berikutnya otomatis memakai pilihan terakhir). Pengajuan lama tanpa pilihan = Tanda Tangan Basah.
+- TTE Srikandi: isian Nomor Surat Desa disembunyikan; PDF paket berisi kode Srikandi → desa mengunggah PDF ke Srikandi.
+- N6 tetap memakai `{{adm_nomor_surat}}` (sesuai permintaan: kode nomor Srikandi hanya di N1).
+
+**Status ayah "-"** (catin anak seorang ibu): isian ayah disembunyikan, di surat data ayah dan bin/binti catin tertulis "-". Bila calon istri, wali wajib Hakim (ada tombol perbaikan sekali ketuk). Bila ibu juga meninggal/tidak diketahui dan catin < 21 th → isian penanggung jawab N5 muncul.
+
+**Pembuatan PDF:** 3 surat dibuat bersamaan; PDF tiap surat langsung dikirim bersama hasilnya (paket digabung tanpa mengunduh ulang). Setelah 100% muncul tombol **Selesai** → paket terunduh, tampilan pindah, dan PDF terbuka di tab baru. Kotak pemberitahuan: **Kirim WhatsApp · Tampilkan PDF · Salin Link**. Tombol pojok bawah: **Tutup**.
+
+**Nama berkas paket:** `Kode_Desa_Suami_Istri.pdf` (mis. `LK-2026-00001_Sawoo_Ahmad Fauzi_Siti Aminah.pdf`), sama untuk unduhan dan berkas di Drive.
 
 ## Perbaikan v1.5.1 (dari v1.5)
 

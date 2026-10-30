@@ -34,6 +34,10 @@ var LK_ORTU = ['ayah_suami', 'ibu_suami', 'ayah_istri', 'ibu_istri'];
 var LK_ADA = 'Ada';
 var LK_MENINGGAL = 'Meninggal';
 var LK_TIDAK_DIKETAHUI = 'Tidak Diketahui Keberadaannya';
+/** v1.5.2: status ayah "-" = catin anak seorang ibu (tidak bernasab ke ayah). */
+var LK_TANPA_AYAH = '-';
+/** v1.5.2: tanda tangan Kepala Desa — basah (nomor surat diketik) atau TTE Srikandi (kode diisi Srikandi). */
+var LK_TTD_SRIKANDI = 'SRIKANDI';
 /** v1.5: status perkawinan sesuai Dukcapil (KTP-el/KK). */
 var LK_CERAI_HIDUP = 'Cerai Hidup';
 var LK_CERAI_MATI = 'Cerai Mati';
@@ -162,6 +166,8 @@ function lkAlamatLengkap(data, prefix) {
  *  MANTAN_BIN:<pola>             "binti X"/"bin X" dari nama ayah mantan pasangan catin (kosong bila tidak ada)
  *  WALI:penetapan | sebab_judul  kalimat Berita Acara Pemeriksaan Wali
  *  WALI:ceklist | hubungan_sebab | hubungan_atau_sebab   isian Ceklist & SPTJM (v1.5.1)
+ *  WALI:perlu                    "Ya" bila isian wali dibutuhkan (memuat calon istri / nikah di wilayah)
+ *  SURAT:nomor | ttd             nomor surat desa & tanda tangan Kepala Desa (TTE Srikandi: ${nomor_naskah} / ${ttd_pengirim})
  *  N5:<ayah|ibu>_<field>         Surat Izin (N5): ayah/ibu catin; bila keduanya meninggal/tidak diketahui → penanggung jawab
  * Otomatis juga:
  *  - nama ayah/ibu yang meninggal diberi akhiran (Alm)/(Almh)
@@ -197,6 +203,10 @@ function lkDerive(data, fields, ctx) {
   LK_ORTU.forEach(function (p) {
     var st = lkStr(out[p + '_status_keberadaan']);
     if (!st || st === LK_ADA) return;
+    if (st === LK_TANPA_AYAH) {   // v1.5.2: tanpa ayah → semua data ayah tertulis "-" di surat (termasuk bin/binti catin)
+      ['nama', 'bin', 'nik', 'kewarganegaraan', 'tempat_lahir', 'tanggal_lahir', 'agama', 'pekerjaan'].concat(LK_DOMISILI).forEach(function (s) { out[p + '_' + s] = ''; });
+      return;
+    }
     ['nik', 'kewarganegaraan', 'tempat_lahir', 'tanggal_lahir', 'agama', 'pekerjaan'].concat(LK_DOMISILI).forEach(function (s) { out[p + '_' + s] = ''; kos[p + '_' + s] = 1; });
     if (st !== LK_TIDAK_DIKETAHUI) kos[p + '_alamat_lengkap'] = 1;
   });
@@ -227,6 +237,14 @@ function lkDerive(data, fields, ctx) {
       }
       // v1.5.1 SPTJM: nasab → hubungan wali; hakim → sebab wali hakim
       else if (arg === 'hubungan_atau_sebab') out[f.field_key] = wj === 'Nasab' ? lkStr(out.wali_hubungan) : wj === 'Hakim' ? lkStr(out.wali_hakim_alasan) : '';
+      // v1.5.2: isian wali dibutuhkan (pengajuan memuat calon istri, atau nikah di wilayah Kec. Sawoo)
+      else if (arg === 'perlu') out[f.field_key] = lkWaliPerlu(out) ? 'Ya' : '';
+    }
+    else if (jenis === 'SURAT') {
+      // v1.5.2: TTE Srikandi → kode yang diisi Srikandi; tanda tangan basah → nomor surat diketik, ruang tanda tangan kosong
+      var tte = lkStr(out.adm_ttd) === LK_TTD_SRIKANDI;
+      if (arg === 'nomor') out[f.field_key] = tte ? '${nomor_naskah}' : lkStr(out.adm_nomor_surat);
+      else if (arg === 'ttd') out[f.field_key] = tte ? '${ttd_pengirim}' : '';
     }
     else if (jenis === 'BIN') out[f.field_key] = lkTanpaAlm(out[arg + '_nama']);
     else if (jenis === 'IDDAH_SELESAI') out[f.field_key] = iddah[arg] ? iddah[arg].selesai : '';
@@ -286,6 +304,11 @@ function lkN5Sumber(d, me) {
   if (ada('ayah') || ada('ibu')) return { ayah: 'ayah_' + me, ibu: 'ibu_' + me };
   var pj = 'izin_' + me;
   return lkStr(d[pj + '_hubungan']) === 'Nenek' ? { ayah: '', ibu: pj } : { ayah: pj, ibu: '' };
+}
+
+/** v1.5.2: isian wali nikah dibutuhkan bila pengajuan memuat calon istri, atau nikah di wilayah Kec. Sawoo (Berita Acara Pemeriksaan Wali). */
+function lkWaliPerlu(d) {
+  return lkPeranHas(d, 'istri') || lkStr(d && d.jenis_pengajuan) === 'NIKAH_DI_KUA';
 }
 
 /** Nilai penanda untuk dicetak di surat: kunci yang ditandai kosong (_kosong) dicetak kosong, bukan "-". */
@@ -602,8 +625,13 @@ function lkSystemChecks(d, ctx) {
   if (lkStr(d.suami_status_perkawinan) === 'Kawin') {
     w.push({ tingkat: 'PERINGATAN', field: 'suami_status_perkawinan', pesan: 'Calon suami berstatus Kawin (beristri lebih dari seorang) — wajib izin Pengadilan Agama.' });
   }
-  if (lkPeranHas(d, 'istri')) {
-    if (lkStr(d.wali_jenis) === 'Nasab' && lkStr(d.wali_hubungan) === LK_WALI_AYAH && lkStr(d.ayah_istri_status_keberadaan) && lkStr(d.ayah_istri_status_keberadaan) !== LK_ADA) {
+  if (lkWaliPerlu(d)) {
+    // v1.5.2: calon istri tanpa ayah (status "-") → tidak ada wali nasab, wajib wali hakim
+    if (lkStr(d.wali_jenis) === 'Nasab' && lkStr(d.ayah_istri_status_keberadaan) === LK_TANPA_AYAH) {
+      w.push({ tingkat: 'BLOKIR', field: 'wali_jenis', fix: { field: 'wali_jenis', value: 'Hakim', label: 'Pakai Wali Hakim' },
+        pesan: 'Ayah calon istri berstatus "-" (tidak bernasab ke ayah) — tidak ada wali nasab. Wali nikah: Hakim, sebab "' + LK_WALI_HAKIM[0] + '".' });
+    }
+    if (lkStr(d.wali_jenis) === 'Nasab' && lkStr(d.wali_hubungan) === LK_WALI_AYAH && lkStr(d.ayah_istri_status_keberadaan) && lkStr(d.ayah_istri_status_keberadaan) !== LK_ADA && lkStr(d.ayah_istri_status_keberadaan) !== LK_TANPA_AYAH) {
       w.push({ tingkat: 'BLOKIR', field: 'wali_hubungan', pesan: 'Ayah calon istri berstatus ' + lkStr(d.ayah_istri_status_keberadaan) + ' — tidak dapat menjadi wali. Pilih wali nasab berikutnya atau wali hakim.' });
     }
     if (lkStr(d.wali_jenis) === 'Hakim') {
@@ -733,6 +761,6 @@ if (typeof module !== 'undefined' && module.exports) {
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
     lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
-    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin, lkNilaiSurat: lkNilaiSurat, lkN5Sumber: lkN5Sumber
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin, lkNilaiSurat: lkNilaiSurat, lkN5Sumber: lkN5Sumber, lkWaliPerlu: lkWaliPerlu
   };
 }
