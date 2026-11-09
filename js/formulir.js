@@ -22,14 +22,53 @@ var Formulir = (function () {
   function isDirty() { return !!(W && W.dirtyServer); }
   function fields() { return App.fields().filter(function (f) { return lkBool(f.aktif) && !f.turunan && f.grup !== 'Turunan'; }); }
   function desaNama() { return W && W.p ? App.desaName(W.p.desa_id) : (S.desa ? S.desa.nama_desa : ''); }
-  function derived() { return lkDerive(W.data, App.fields(), { id: W.id || '', desa: desaNama(), kua: App.kuaName(), cfg: S.master.config }); }
+  function derived() { return lkDerive(W.data, App.fields(), { id: W.id || '', desa: desaNama(), kua: App.kuaName(), cfg: S.master.config, desaId: desaId() }); }
   /** Data desa pengajuan ini (desa sendiri, atau desa pengaju saat KUA mengedit). */
   function desaRow() {
     var id = W && W.p ? W.p.desa_id : (S.desa ? S.desa.desa_id : '');
     return (S.master.desa || []).find(function (d) { return d.desa_id === id; }) || S.desa || {};
   }
+  function desaId() { return desaRow().desa_id || ''; }
   function modinList() { return lkModinList(desaRow()); }
-  function wctx() { return { libur: S.master.libur || [], cfg: S.master.config, modin: modinList().map(function (x) { return x.nama; }) }; }
+  function wctx() { return { libur: S.master.libur || [], cfg: S.master.config, modin: modinList().map(function (x) { return x.nama; }), desaId: desaId() }; }
+
+  /* ---------------- v1.5.3: PASANGAN LINTAS DESA (nikah di desa lain dalam kecamatan) ---------------- */
+  /** Bagian formulir yang diisi desa pasangan → tampil terkunci (server tetap memakai nilai dari desa pasangan). */
+  function kunciGrup() {
+    var sk = W && W.sinkron, g = [];
+    if (sk) sk.kunci.forEach(function (x) { if (x !== 'kunci') g = g.concat(LK_SINKRON[x] || []); });
+    return g;
+  }
+  function kunciField(k, grup) {
+    var sk = W && W.sinkron;
+    return !!sk && (kunciGrup().indexOf(grup) >= 0 || (sk.kunci.indexOf('kunci') >= 0 && LK_SINKRON.kunci.indexOf(k) >= 0));
+  }
+  /** Nilai bagian terkunci dari server (hasil simpan / muat). true bila tampilan perlu diperbarui. */
+  function terapkanSinkron(sk) {
+    if (!W) return false;
+    var lama = W.sinkron ? W.sinkron.kunci.join() + W.sinkron.pasangan_id : '';
+    W.sinkron = sk || null;
+    var ubah = lama !== (sk ? sk.kunci.join() + sk.pasangan_id : '');
+    if (!sk) return ubah;
+    lkSinkronKeys(App.fields(), sk.kunci).forEach(function (k) {
+      var v = sk.data[k];
+      if (v === undefined) { if (W.data[k] !== undefined) { delete W.data[k]; ubah = true; } }
+      else if (W.data[k] !== v) { W.data[k] = v; ubah = true; }
+    });
+    return ubah;
+  }
+  /** Pilihan isian (desa nikah: Desa Uji Coba hanya untuk akun desa uji). */
+  function opsiField(f) {
+    var ops = lkParseOpsi(f.opsi);
+    return f.field_key === 'akad_desa' ? ops.filter(function (o) { return o.v !== 'DSUJI' || desaId() === 'DSUJI'; }) : ops;
+  }
+  function desaInfo() {
+    var sk = W.sinkron, nama = lkOpsiLabel(App.fieldMap().akad_desa, W.data.akad_desa);
+    if (sk && sk.peran === 'ASAL') return '<div class="info-msg">' + icon('link', 13) + ' Tertaut ke <b>' + esc(sk.pasangan_id) + '</b> (Desa ' + esc(sk.desa) + '). Data calon suami terkirim otomatis tiap disimpan; data calon istri, wali &amp; jadwal akad diisi Desa ' + esc(sk.desa) + '.</div>';
+    if (sk && sk.peran === 'NIKAH') return '<div class="info-msg">' + icon('link', 13) + ' Kiriman dari Desa ' + esc(sk.desa) + ' (<b>' + esc(sk.pasangan_id) + '</b>). Data calon suami diisi desa tersebut; desa ini mengisi calon istri, wali &amp; jadwal akad, lalu mengirim ke KUA.</div>';
+    if (lkNikahDesaLain(W.data, desaId())) return '<div class="info-msg">' + icon('send', 13) + ' Data diteruskan ke Desa ' + esc(nama) + ' setelah nama calon suami &amp; calon istri terisi. Desa ' + esc(nama) + ' yang mengisi wali, mengatur jadwal akad, dan mengirim ke KUA.</div>';
+    return '';
+  }
   /** v1.4: draf baru tercatat di server setelah Jadwal Akad terisi. */
   function jadwalOk(d) { return !!(d.jenis_pengajuan && d.peran_catin && lkParseDate(d.akad_tanggal)); }
   function groupFields(gkey) { return fields().filter(function (f) { return f.grup === gkey; }); }
@@ -86,6 +125,7 @@ var Formulir = (function () {
     }
     W.p = p; W.status = p.status; W.rowVersion = p.row_version; W.dokumen = r.data.dokumen || [];
     W.data = r.data.data || {};
+    W.sinkron = r.data.sinkron || null;
     W.autoTempat = W.data.akad_tempat || '';
     App.upsertRow(p);
     // v1.4: modin desa tunggal terisi otomatis pada pengajuan lama yang belum berisi modin
@@ -171,10 +211,13 @@ var Formulir = (function () {
         w.status = r.data.row.status;
         App.upsertRow(r.data.row);
         if (wasNew) { clearLocal(null); history.replaceState(null, '', '#/form/' + w.id); }
-        if (JSON.stringify(w.data) === snapshot) { w.dirtyServer = false; clearLocal(); } else saveLocal();
+        var sama = JSON.stringify(w.data) === snapshot;
+        var segar = terapkanSinkron(r.data.sinkron);   // v1.5.3: bagian dari desa pasangan selalu terbaru
+        if (sama) { w.dirtyServer = false; clearLocal(); } else saveLocal();
         w.lastSaved = new Date();
         setSaveStatus('saved');
         renderMeta();
+        if (segar) { renderBody(); renderSteps(); }
         if (w.pending) { w.pending = false; return serverSave(); }
         return true;
       }
@@ -217,7 +260,10 @@ var Formulir = (function () {
   function stepErrors() {
     var errs = allErrors();
     var by = { 1: 0, 2: 0, 3: 0 };
-    errs.forEach(function (e) { var g = lkGroup(e.grup); if (g && by[g.step] !== undefined) by[g.step]++; });
+    errs.forEach(function (e) {
+      e.kunci = kunciField(e.field, e.grup);   // v1.5.3: diisi desa pasangan → tidak menghalangi pindah langkah
+      var g = lkGroup(e.grup); if (!e.kunci && g && by[g.step] !== undefined) by[g.step]++;
+    });
     return { list: errs, by: by };
   }
   function showErr(step) { return W.step === LAST || !!W.errSteps[step]; }
@@ -270,7 +316,7 @@ var Formulir = (function () {
     var nama = [d.suami_nama, d.istri_nama].filter(Boolean).join(' & ');
     box.innerHTML = '<span data-save></span><span class="hide-sm">·</span><span class="hide-sm">Status:</span>' + UI.pill(W.status) + '<span class="hide-sm">·</span><span>ID: <b class="mono">' + esc(W.id || '(dibuat saat disimpan)') + '</b></span>' +
       (nama ? '<span class="hide-sm">·</span><span class="hide-sm">Catin: <b style="color:var(--text)">' + esc(nama) + '</b></span>' : '') +
-      '';
+      (W.sinkron ? '<span class="hide-sm">·</span><span>' + icon('link', 13) + ' Tertaut <b class="mono">' + esc(W.sinkron.pasangan_id) + '</b> (Desa ' + esc(W.sinkron.desa) + ')</span>' : '');
     setSaveStatus(saveState.s, saveState.msg);
   }
 
@@ -281,7 +327,7 @@ var Formulir = (function () {
     box.classList.remove('hidden');
     var se = showErr(W.step) ? stepErrors().list : [];
     box.innerHTML = groups.map(function (g, i) {
-      var n = se.filter(function (e) { return e.grup === g.key; }).length;
+      var n = se.filter(function (e) { return e.grup === g.key && !e.kunci; }).length;
       var on = g.key === W.sub[W.step];
       return '<button class="subtab' + (on ? ' active' : '') + '" role="tab" aria-selected="' + on + '" data-tab="' + esc(g.key) + '"><span class="tn">' + (i + 1) + '</span>' + esc(g.tab || groupTitle(g)) +
         (n ? '<span class="adot" title="' + n + ' isian perlu dilengkapi"></span>' : '') + '</button>';
@@ -307,7 +353,7 @@ var Formulir = (function () {
   /** Pindah ke tab berikutnya; isian wajib tab ini harus lengkap dulu. */
   function nextTab(groups, idx) {
     var cur = groups[idx];
-    var errs = stepErrors().list.filter(function (e) { return e.grup === cur.key; });
+    var errs = stepErrors().list.filter(function (e) { return e.grup === cur.key && !e.kunci; });
     if (errs.length) {
       W.errSteps[W.step] = true;
       renderBody(); renderSteps();
@@ -372,12 +418,17 @@ var Formulir = (function () {
       if (!last || last.s !== s) seksi.push({ s: s, f: [f] }); else last.f.push(f);
     });
     var html = '';
+    var terkunci = list.some(function (f) { return kunciField(f.field_key, f.grup); });
+    if (terkunci) {
+      html += '<div class="banner info" style="margin-bottom:12px">' + icon('link') + '<div class="txt">' +
+        (g.key === 'Administrasi' ? 'Jenis pengajuan, desa nikah &amp; pengajuan untuk mengikuti kiriman' : 'Bagian ini diisi') + ' <b>Desa ' + esc(W.sinkron.desa) + '</b> (' + esc(W.sinkron.pasangan_id) + ') dan diperbarui otomatis. Untuk mengubahnya, hubungi desa tersebut.</div></div>';
+    }
     if (/^Izin Orang Tua/.test(g.key)) {
       html += '<div class="banner warn" style="margin-bottom:12px">' + icon('alert') + '<div class="txt"><b>Kedua orang tua ' + (g.prefix === 'izin_suami' ? 'calon suami' : 'calon istri') + ' meninggal / tidak diketahui keberadaannya</b> dan catin belum 21 tahun. Isi siapa yang bertanggung jawab memberi izin (UU 1/1974 Pasal 6 ayat 4). Data ini dipakai di Surat Izin (N5).</div></div>';
     }
     html += seksi.map(function (sk, idx) {
       var right = '';
-      if (g.copyFrom && /^DOMISILI/.test(sk.s)) {
+      if (g.copyFrom && /^DOMISILI/.test(sk.s) && !terkunci) {
         right = '<button class="btn btn-sm" data-copy="' + esc(g.key) + '">' + icon('copy', 15) + '<span>Sama dengan ' + esc(g.copyLabel) + '</span></button>';
       } else if (sk.s === 'IDENTITAS' && (g.prefix === 'suami' || g.prefix === 'istri')) right = '<span class="sub hide-sm">Wajib sesuai KTP &amp; Akta Kelahiran</span>';
       var title = sk.s === 'IDENTITAS' ? 'IDENTITAS ' + groupTitle(g).toUpperCase() : sk.s;
@@ -423,15 +474,15 @@ var Formulir = (function () {
     var req = lkBool(f.wajib) || (k === 'adm_modin' && modinList().length) ? '<span class="req">*</span>' : '';
     var full = f.tipe === 'TEKS_PANJANG' || k === 'akad_tempat' ? ' full' : '';
     var ctl;
-    var common = ' id="' + id + '" data-k="' + esc(k) + '"';
+    var kunci = kunciField(k, f.grup);
+    var common = ' id="' + id + '" data-k="' + esc(k) + '"' + (kunci ? ' disabled' : '');
+    var bantuan = f.bantuan;
     if (k === 'adm_modin') {
-      // v1.4: modin ditentukan Admin KUA — satu modin terisi otomatis, lebih dari satu dipilih
+      // v1.5.3: pilih dari daftar modin desa atau ketik nama baru (masuk ke daftar modin desa & Data Master saat disimpan)
       var ml = modinList();
-      if (ml.length > 1 || (v && ml.length && !ml.some(function (x) { return x.nama === v; }))) {
-        var mo = ml.map(function (x) { return { v: x.nama, l: x.nama }; });
-        if (v && !ml.some(function (x) { return x.nama === v; })) mo.unshift({ v: v, l: v + ' (tidak ada di daftar)' });
-        ctl = '<select class="select"' + common + '>' + UI.options(mo, v, '— Pilih modin —') + '</select>';
-      } else ctl = '<input class="input" readonly tabindex="-1"' + common + ' value="' + esc(v || (ml[0] ? ml[0].nama : '')) + '" placeholder="Belum ada modin — hubungi Admin KUA">';
+      ctl = '<input class="input"' + common + ' list="dl_modin" autocomplete="off" autocapitalize="words" value="' + esc(v) + '" placeholder="' + (ml.length ? 'Pilih atau ketik nama modin' : 'Ketik nama modin') + '">' +
+        '<datalist id="dl_modin">' + ml.map(function (x) { return '<option value="' + esc(x.nama) + '"></option>'; }).join('') + '</datalist>';
+      bantuan = 'Pilih dari daftar, atau ketik nama baru. Nama baru otomatis masuk daftar modin desa.';
     } else if (k === 'akad_tanggal') {
       var disp = v ? lkHari(v) + ', ' + lkTanggalPanjang(v) : '';
       ctl = '<div class="input-wrap"><input class="input dp-input" readonly' + common + ' data-dp value="' + esc(disp) + '" placeholder="— Pilih tanggal —"><span class="suffix">' + icon('calendar', 16) + '</span></div>';
@@ -448,7 +499,7 @@ var Formulir = (function () {
             '<span class="suffix' + (v.length === 16 ? ' good' : '') + '" data-nikc="' + esc(k) + '">' + (v.length === 16 ? '✓ ' : '') + v.length + '/16</span></div>';
           break;
         case 'PILIHAN':
-          var ops = lkParseOpsi(f.opsi);
+          var ops = opsiField(f);
           // Daftar panjang (mis. 106 pekerjaan Dukcapil): pilihan dengan kotak cari
           if (ops.length > 12) ctl = '<div class="input-wrap"><input class="input cp-input" readonly' + common + ' data-cp value="' + esc(v ? lkOpsiLabel(f, v) : '') + '" placeholder="— Pilih —"><span class="suffix">' + icon('chevD', 16) + '</span></div>';
           else ctl = '<select class="select"' + common + '>' + UI.options(ops, v, '— Pilih —') + '</select>';
@@ -460,11 +511,12 @@ var Formulir = (function () {
     var extra = '';
     if (k === 'suami_tanggal_lahir' || k === 'istri_tanggal_lahir') extra = '<div data-umur="' + k.split('_')[0] + '">' + umurHelp(k.split('_')[0]) + '</div>';
     if (k === 'akad_tanggal') extra = '<div data-akadinfo>' + akadInfo() + '</div>';
+    if (k === 'akad_desa') extra = desaInfo();
     // v1.5: peringatan per isian dalam wadah sendiri → diperbarui langsung tiap isian berubah (refreshWarn)
     extra += '<div class="sysw" data-sysw="' + esc(k) + '">' + sysHtml(err, sysWarn) + '</div>';
     var cls = 'field' + full + (err ? ' err' : '') + (/_(rt|rw)$/.test(k) ? ' narrow' : '');
     return '<div class="' + cls + '" data-fk="' + esc(k) + '"><label for="' + id + '" title="' + esc(f.label) + '">' + esc(f.label) + req + '</label>' + ctl + extra +
-      (err ? '<div class="msg">' + esc(err) + '</div>' : (f.bantuan ? '<div class="help">' + esc(f.bantuan) + '</div>' : '')) + '</div>';
+      (err ? '<div class="msg">' + esc(err) + '</div>' : (bantuan ? '<div class="help">' + esc(bantuan) + '</div>' : '')) + '</div>';
   }
 
   /** Pesan pemeriksaan sistem untuk satu isian (+ tombol perbaikan sekali ketuk). */
@@ -485,7 +537,14 @@ var Formulir = (function () {
   function warnMaps(step) {
     var der = derived();
     var errMap = {}, sysMap = {};
-    if (showErr(step)) allErrors().forEach(function (e) { if (!errMap[e.field]) errMap[e.field] = e.pesan; });
+    if (showErr(step)) allErrors().forEach(function (e) { if (!errMap[e.field] && !kunciField(e.field, e.grup)) errMap[e.field] = e.pesan; });
+    // v1.5.3: NIK yang sudah ada di pengajuan lain desa ini (mis. kiriman desa calon suami) → jangan membuat pengajuan ganda
+    ['suami_nik', 'istri_nik'].forEach(function (k) {
+      var v = lkStr(W.data[k]);
+      if (v.length !== 16) return;
+      var r = (S.list || []).find(function (x) { return x.pengajuan_id !== W.id && x.status !== 'DIBATALKAN' && x.nik_catin === v && x.pengajuan_id !== (W.p && W.p.pasangan_pengajuan_id); });
+      if (r) (sysMap[k] = sysMap[k] || []).push({ tingkat: 'PERINGATAN', pesan: 'NIK ini sudah ada di ' + r.pengajuan_id + ' (' + (r.nama_catin || '-') + (App.isKua() ? ', Desa ' + App.desaName(r.desa_id) : '') + '). Bila itu kiriman desa lain yang akan nikah di desa ini, lanjutkan pengajuan itu, jangan membuat baru.' });
+    });
     // w.wajib = isian wajib bersyarat (mis. modin): tampil merah hanya setelah tombol Berikutnya, seperti isian wajib lain
     lkWarnings(der, [], wctx()).forEach(function (w) { if (w.field && !w.wajib && (w.fix || !(w.tingkat === 'BLOKIR' && errMap[w.field] === w.pesan))) (sysMap[w.field] = sysMap[w.field] || []).push(w); });
     return { err: errMap, sys: sysMap };
@@ -575,11 +634,17 @@ var Formulir = (function () {
     }
     sc.onchange = function (e) {
       var t = e.target, k = t.dataset && t.dataset.k;
-      if (!k || t.tagName !== 'SELECT') return;
+      if (!k) return;
+      if (t.tagName === 'INPUT' && !t.readOnly) {   // v1.5.3: Huruf Awal Kapital saat kursor keluar dari isian
+        if (lkRapiField(App.fieldMap()[k])) { var rv = lkRapi(t.value); if (rv !== t.value) { t.value = rv; setVal(k, rv, t, 'text'); } }
+        return;
+      }
+      if (t.tagName !== 'SELECT') return;
       setVal(k, t.value, t, 'select');
     };
     UI.$$('[data-dp]', sc).forEach(function (inp) {
       var openDp = function () {
+        if (inp.disabled) return;
         var kantor = lkStr(W.data.akad_lokasi) === LK_KANTOR;
         var lm = lkLiburMap(S.master.libur);
         var idd = lkIddah(W.data, S.master.config).istri;
@@ -604,8 +669,8 @@ var Formulir = (function () {
     UI.$$('[data-cp]', sc).forEach(function (inp) {
       var openCp = function () {
         var f = App.fieldMap()[inp.dataset.k];
-        if (!f) return;
-        UI.choicePicker(inp, { title: f.label, options: lkParseOpsi(f.opsi), value: W.data[f.field_key], onPick: function (v) { setVal(f.field_key, v, inp, 'select'); } });
+        if (!f || inp.disabled) return;
+        UI.choicePicker(inp, { title: f.label, options: opsiField(f), value: W.data[f.field_key], onPick: function (v) { setVal(f.field_key, v, inp, 'select'); } });
       };
       inp.onclick = openCp;
       inp.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); openCp(); } };
@@ -632,6 +697,8 @@ var Formulir = (function () {
   /** Isian otomatis setelah pilihan tertentu berubah. */
   function autoFill(k) {
     var d = W.data, cfg = S.master.config, desa = S.desa || {};
+    // v1.5.3: pengajuan memuat calon istri → desa nikah = desa ini
+    if ((k === 'peran_catin' || k === 'jenis_pengajuan') && d.jenis_pengajuan === 'NIKAH_DI_KUA' && lkPeranHas(d, 'istri') && !d.akad_desa && desaId() && App.fieldMap().akad_desa) d.akad_desa = desaId();
     if (k === 'peran_catin' && desa.nama_desa) {
       ['suami', 'istri'].forEach(function (p) {
         if (!lkPeranHas(d, p)) return;
@@ -780,12 +847,14 @@ var Formulir = (function () {
       return '<section class="acc open"><div class="acc-h" style="cursor:default"><span class="pill ' + (errs.length ? 's-DIBATALKAN' : 's-OK') + '">' + (errs.length ? errs.length + ' perlu dilengkapi' : 'Lengkap') + '</span><h3>' + esc(title) + '</h3>' +
         '<button class="btn btn-sm" data-jump-step="' + n + '">' + icon('pencil', 14) + 'Ubah</button></div><div class="acc-b">' +
         (errs.length ? '<div class="diff" style="background:var(--danger-50);border-color:#FECACA">' + errs.slice(0, 12).map(function (e) {
+          if (e.kunci) return '<div>' + esc(e.label) + ': menunggu Desa ' + esc(W.sinkron.desa) + '</div>';   // v1.5.3: diisi desa pasangan
           return '<div><a href="#" data-goto="' + esc(e.field) + '" data-grp="' + esc(e.grup) + '">' + esc(e.label) + '</a>: ' + esc(e.pesan) + '</div>';
         }).join('') + (errs.length > 12 ? '<div class="muted">… ' + (errs.length - 12) + ' lainnya</div>' : '') + '</div>' : '') +
         (rows ? '<div class="kv' + (errs.length ? ' mt-s' : '') + '">' + rows + '</div>' : '') + '</div></section>';
     };
-    var waliTxt = lkWaliPerlu(der) ? (f('wali_jenis') + (der.wali_jenis === 'Nasab' ? (der.wali_nama ? ' — ' + der.wali_nama : '') + (der.wali_hubungan ? ' (' + der.wali_hubungan + ')' : '') : der.wali_hakim_alasan ? ' — ' + der.wali_hakim_alasan : '')) : 'Diisi pada pengajuan calon istri';
-    var left = sumCard(1, 'Jadwal Akad', App.kv('Jenis', f('jenis_pengajuan')) + App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Kepala Desa', f('adm_kepala_desa')) + App.kv('Modin', der.adm_modin || '–') +
+    var perluWali = der.wali_perlu !== undefined ? der.wali_perlu === 'Ya' : lkWaliPerlu(der, desaId());
+    var waliTxt = perluWali ? (f('wali_jenis') + (der.wali_jenis === 'Nasab' ? (der.wali_nama ? ' — ' + der.wali_nama : '') + (der.wali_hubungan ? ' (' + der.wali_hubungan + ')' : '') : der.wali_hakim_alasan ? ' — ' + der.wali_hakim_alasan : '')) : lkNikahDesaLain(der, desaId()) ? 'Diisi Desa ' + f('akad_desa') + ' (desa nikah)' : 'Diisi pada pengajuan calon istri';
+    var left = sumCard(1, 'Jadwal Akad', App.kv('Jenis', f('jenis_pengajuan')) + (der.jenis_pengajuan === 'NIKAH_DI_KUA' ? App.kv('Nikah di Wilayah Desa', f('akad_desa')) : '') + App.kv('Pengajuan Untuk', f('peran_catin')) + App.kv('Kepala Desa', f('adm_kepala_desa')) + App.kv('Modin', der.adm_modin || '–') +
       App.kv('Nomor / Tanggal Surat', (der.adm_nomor_surat || '–') + ' / ' + f('adm_tanggal_surat')) + App.kv('Hari, Tanggal Akad', der.akad_tanggal ? lkHari(der.akad_tanggal) + ', ' + lkTanggalPanjang(der.akad_tanggal) : '–') +
       App.kv('Jam · Tempat', [der.akad_jam ? der.akad_jam + ' WIB' : '', der.akad_tempat].filter(Boolean).join(' · ') || '–')) +
       sumCard(2, 'Data Calon Suami', App.kv('Calon Suami', orang('suami', 'bin')) + App.kv('Umur saat Akad', der.suami_umur_saat_akad ? der.suami_umur_saat_akad + ' tahun' : '–') +
@@ -802,8 +871,11 @@ var Formulir = (function () {
       right += '<div class="card mt" style="border-color:var(--warn-border)"><div class="card-head" style="background:var(--warn-bg)"><h3 style="font-size:15px;color:var(--warn-text)">' + icon('alert', 18) + ' PERINGATAN</h3></div><div class="card-body stack" style="gap:8px">' +
         warns.map(function (w) { return '<div class="banner ' + (w.tingkat === 'BLOKIR' ? 'danger' : w.tingkat === 'INFO' ? 'info' : 'warn') + '">' + icon(w.tingkat === 'BLOKIR' ? 'xCircle' : w.tingkat === 'INFO' ? 'info' : 'alert') + '<div class="txt">' + (w.tingkat === 'BLOKIR' ? '<b>Wajib diperbaiki:</b> ' : '') + esc(w.pesan) + '</div></div>'; }).join('') + '</div></div>';
     }
+    var tunggu = se.list.filter(function (e) { return e.kunci; }).length;
     if (se.list.length || blok.length) {
-      right += '<div class="banner danger mt">' + icon('xCircle') + '<div class="txt"><b>Belum bisa dicetak.</b> Lengkapi ' + se.list.length + ' isian bertanda merah (ketuk namanya).</div></div>';
+      right += '<div class="banner danger mt">' + icon('xCircle') + '<div class="txt"><b>Belum bisa dicetak.</b> ' +
+        (se.list.length > tunggu ? 'Lengkapi ' + (se.list.length - tunggu) + ' isian bertanda merah (ketuk namanya).' : '') +
+        (tunggu ? ' Menunggu Desa ' + esc(W.sinkron.desa) + ' melengkapi ' + tunggu + ' isian.' : '') + '</div></div>';
     } else {
       right += '<div class="banner ok mt">' + icon('checkCircle') + '<div class="txt">Data lengkap. Tekan <b>Simpan &amp; Cetak</b>.</div></div>';
     }
@@ -819,7 +891,9 @@ var Formulir = (function () {
     if (se.list.length) {
       [1, 2, 3].forEach(function (s) { if (se.by[s]) W.errSteps[s] = true; });
       renderSteps(); renderBody();
-      return UI.toast('Masih ada ' + se.list.length + ' isian yang perlu dilengkapi/diperbaiki.', 'error');
+      var tg = se.list.filter(function (e) { return e.kunci; }).length;
+      if (tg === se.list.length) return UI.toast('Menunggu Desa ' + W.sinkron.desa + ' melengkapi ' + tg + ' isian sebelum bisa dicetak.', 'warning');
+      return UI.toast('Masih ada ' + (se.list.length - tg) + ' isian yang perlu dilengkapi/diperbaiki.', 'error');
     }
     // v1.5.1: tetap di tab KUA-Link selama surat dibuat (progres terlihat); tab baru dibuka setelah paket siap
     var win = null;

@@ -478,12 +478,10 @@ var App = (function () {
     var r = await API.call('listNotif');
     if (r.success) { S.notif = r.data; updateBell(); }
   }
-  /** Desa: draf yang bisa dilanjutkan (lonceng desa). */
-  function drafList() { return isKua() ? [] : S.list.filter(function (p) { return p.status === 'DRAF'; }); }
   function updateBell() {
     var c = document.getElementById('bellCount');
     if (!c) return;
-    var n = (S.notif.unread || 0) + drafList().length;
+    var n = S.notif.unread || 0;   // v1.5.3: lonceng desa = pemberitahuan saja (draf ada di Riwayat Pengajuan)
     c.textContent = n > 99 ? '99+' : n;
     c.classList.toggle('hidden', !n);
   }
@@ -506,17 +504,17 @@ var App = (function () {
     pop.className = 'notif-pop';
     pop.id = 'notifPop';
     var items = S.notif.items || [];
-    var draf = drafList();
-    var notifHtml = items.map(function (n) {
-      return '<button class="notif-item' + (lkBool(n.dibaca) ? '' : ' unread') + '" data-id="' + esc(n.pengajuan_id) + '"><div>' + esc(n.pesan) + '</div><div class="w">' + UI.waktu(n.waktu) + '</div></button>';
-    }).join('');
-    // KUA: hasil kiriman ke Akad Tracker & LABUKU Desk · Desa: draf yang belum selesai + pemberitahuan dari KUA
+    // v1.5.3 (desa): manten dari desa lain yang akan nikah di desa ini (ketuk → lanjutkan isian) + pemberitahuan dari KUA
+    var lanjut = function (n) { return n.jenis === 'NIKAH_MASUK' || n.jenis === 'NIKAH_DIPERBARUI'; };
+    var itemHtml = function (n) {
+      return '<button class="notif-item' + (lkBool(n.dibaca) ? '' : ' unread') + '" ' + (lanjut(n) ? 'data-form' : 'data-id') + '="' + esc(n.pengajuan_id) + '"><div>' + esc(n.pesan) + '</div><div class="w">' + UI.waktu(n.waktu) + '</div></button>';
+    };
+    var masuk = isKua() ? [] : items.filter(function (n) { return /^NIKAH_/.test(n.jenis); });
+    var lain = items.filter(function (n) { return masuk.indexOf(n) < 0; });
     pop.innerHTML = '<div class="card-head"><h3 style="font-size:15px">' + (isKua() ? 'Kiriman ke Akad Tracker & LABUKU Desk' : 'Notifikasi') + '</h3></div>' +
-      (draf.length ? '<div class="notif-sec">Draf — lanjutkan isian (' + draf.length + ')</div>' + draf.slice(0, 20).map(function (p) {
-        return '<button class="notif-item unread" data-form="' + esc(p.pengajuan_id) + '"><div><b class="mono">' + esc(p.pengajuan_id) + '</b> · ' + esc(p.nama_catin || '(nama belum diisi)') + '</div><div class="w">Akad ' + UI.tgl(p.tanggal_akad) + ' · diubah ' + UI.waktu(p.diubah_pada) + '</div></button>';
-      }).join('') : '') +
-      (draf.length && items.length ? '<div class="notif-sec">Dari KUA</div>' : '') +
-      (notifHtml || (draf.length ? '' : '<div class="empty">' + (isKua() ? 'Belum ada kiriman.' : 'Tidak ada draf atau pemberitahuan.') + '</div>'));
+      (masuk.length ? '<div class="notif-sec">Akan nikah di desa ini</div>' + masuk.map(itemHtml).join('') : '') +
+      (masuk.length && lain.length ? '<div class="notif-sec">Dari KUA</div>' : '') + lain.map(itemHtml).join('') +
+      (items.length ? '' : '<div class="empty">' + (isKua() ? 'Belum ada kiriman.' : 'Belum ada pemberitahuan. Data manten dari desa lain yang akan nikah di desa ini muncul di sini.') + '</div>');
     document.body.appendChild(pop);
     var r = btn.getBoundingClientRect();
     pop.style.top = (r.bottom + 6) + 'px';
@@ -547,7 +545,10 @@ var App = (function () {
         '<div class="field full"><label for="pdKades">Nama Kepala Desa</label><input class="input" id="pdKades" value="' + esc(d.kepala_desa || '') + '" placeholder="mis. H. Ahmad Sutrisno"><div class="help">Terisi otomatis di formulir pengajuan.</div></div>' +
         '<div class="field full"><label for="pdAlamat">Alamat Kantor Desa</label><input class="input" id="pdAlamat" value="' + esc(d.alamat_kantor || '') + '"></div>' +
         '<div class="field"><label>Nomor Surat Terakhir</label><input class="input mono" value="' + esc(d.nomor_surat_terakhir || '–') + '" readonly></div>' +
-        '<div class="field"><label>Modin</label><input class="input" value="' + esc(lkModinList(d).map(function (x) { return x.nama; }).join(', ') || 'Belum diatur Admin KUA') + '" readonly></div></div>' +
+        // v1.5.3: daftar modin bisa diubah desa (nama & WA, tambah, hapus) — Data Master KUA ikut berubah
+        '<div class="field full"><label id="pdModinLbl">Modin</label><div data-mlist aria-labelledby="pdModinLbl">' + (lkModinList(d).length ? lkModinList(d) : [{}]).map(modinRowHtml).join('') + '</div>' +
+        '<button type="button" class="btn btn-sm mt-s" data-madd style="align-self:flex-start">' + icon('plus', 14) + 'Tambah Modin</button>' +
+        '<div class="help">Satu modin terisi otomatis di formulir; lebih dari satu dipilih. Nama modin baru yang diketik di formulir juga masuk ke sini.</div></div></div>' +
         '<div class="row end mt"><button class="btn btn-primary" id="pdSave">' + icon('save') + 'Simpan Data Desa</button></div></div></div>' : '') +
       '<div class="card topline"><div class="card-head"><h2>Akun</h2></div><div class="card-body" id="akunBox"><div class="form-grid">' +
       '<div class="field"><label for="paUser">Username</label><input class="input mono" id="paUser" value="' + esc(S.user.username) + '" autocomplete="off" autocapitalize="none" spellcheck="false"><div class="help">Huruf kecil, angka, titik.</div></div>' +
@@ -574,16 +575,40 @@ var App = (function () {
       });
     };
     var pd = document.getElementById('pdSave');
+    var mlist = main.querySelector('[data-mlist]');
+    var bindDel = function () { UI.$$('[data-mdel]', mlist).forEach(function (b) { b.onclick = function () { b.closest('[data-mrow]').remove(); }; }); };
+    if (mlist) {
+      bindDel();
+      main.querySelector('[data-madd]').onclick = function () {
+        if (mlist.querySelectorAll('[data-mrow]').length >= 10) return UI.toast('Maksimal 10 modin.', 'warning');
+        mlist.insertAdjacentHTML('beforeend', modinRowHtml({})); bindDel();
+        var ins = mlist.querySelectorAll('[data-mn]'); ins[ins.length - 1].focus();
+      };
+      UI.$$('#pdKades', main).forEach(rapiOnChange);
+      mlist.addEventListener('change', function (e) { if (e.target.matches('[data-mn]')) e.target.value = lkRapi(e.target.value); });
+    }
     if (pd) pd.onclick = function () {
+      var modin = UI.$$('[data-mrow]', mlist).map(function (r) { return { nama: r.querySelector('[data-mn]').value.trim(), wa: r.querySelector('[data-mw]').value.trim() }; })
+        .filter(function (x) { return x.nama || x.wa; });
+      if (modin.some(function (x) { return !x.nama; })) return UI.toast('Nama modin wajib diisi (atau hapus barisnya).', 'error');
       UI.busy(pd, async function () {
-        var r = await API.call('saveProfilDesa', { kepala_desa: document.getElementById('pdKades').value, alamat_kantor: document.getElementById('pdAlamat').value });
+        var r = await API.call('saveProfilDesa', { kepala_desa: document.getElementById('pdKades').value, alamat_kantor: document.getElementById('pdAlamat').value, modin: modin });
         if (!r.success) return UI.toast(r.message, 'error');
         setDesa(r.data.desa);
         UI.toast(r.message);
       });
     };
   }
-  /** Perbarui data desa di state (Profil Desa ⇄ formulir: kepala desa & nomor surat terakhir). */
+  /** v1.5.3: satu baris modin di Profil Desa (nama + nomor WA + hapus). */
+  function modinRowHtml(x) {
+    return '<div class="modin-edit" data-mrow><input class="input" data-mn placeholder="Nama modin" aria-label="Nama modin" autocapitalize="words" value="' + esc(x.nama || '') + '">' +
+      '<input class="input mono" data-mw inputmode="tel" placeholder="No. WA (08… / 62…)" aria-label="Nomor WhatsApp modin" value="' + esc(x.wa || '') + '">' +
+      '<button type="button" class="btn btn-ghost btn-icon" data-mdel aria-label="Hapus modin" style="color:var(--danger)">' + icon('xCircle', 18) + '</button></div>';
+  }
+  /** v1.5.3: isian teks dirapikan (Huruf Awal Kapital) saat kursor keluar dari isian. */
+  function rapiOnChange(inp) { inp.addEventListener('change', function () { inp.value = lkRapi(inp.value); }); }
+
+  /** Perbarui data desa di state (Profil Desa ⇄ formulir: kepala desa, nomor surat terakhir, modin). */
   function setDesa(d) {
     if (!d || !d.desa_id) return;
     if (S.desa && S.desa.desa_id === d.desa_id) S.desa = Object.assign({}, S.desa, d);
@@ -629,8 +654,9 @@ var App = (function () {
       sec('history', 'Riwayat, edit &amp; batal', [
         '<b>Riwayat Pengajuan</b> memuat semua pengajuan desa (Draf, Siap Cetak, Batal). Cari dengan nomor, NIK, atau nama.',
         'Data bisa diedit kapan saja; setelah diedit, cetak ulang &amp; tanda tangan ulang. Bila KUA yang mengubah, Anda mendapat pemberitahuan di lonceng.',
+        'Calon suami desa Anda nikah di desa lain dalam kecamatan: pilih <b>Nikah di Wilayah Desa</b> = desa calon istri. Data terkirim otomatis ke desa itu; desa itulah yang mengisi wali, mengatur jadwal akad, dan mengirim ke KUA.',
         'Batal: Riwayat → ☰ → <b>Batalkan</b>. Status menjadi Batal (data tetap ada) dan bisa diaktifkan kembali. KUA ikut menerima perubahan status.',
-        '<b>Lonceng</b> menampilkan draf yang belum selesai — ketuk untuk melanjutkan — serta pemberitahuan dari KUA.'
+        '<b>Lonceng</b> menampilkan data manten dari desa lain yang akan nikah di desa Anda (ketuk untuk melanjutkan) serta pemberitahuan dari KUA. Draf yang belum selesai ada di <b>Riwayat Pengajuan</b>.'
       ]),
       sec('key', 'Akun &amp; keamanan', [
         'Password awal dari KUA wajib diganti saat masuk pertama. Lupa password? Hubungi Admin KUA untuk reset.',

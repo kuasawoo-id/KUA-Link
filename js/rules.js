@@ -180,6 +180,8 @@ function lkDerive(data, fields, ctx) {
   for (k in data) if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
   ctx = ctx || {};
   var cfg = ctx.cfg || {};
+  // v1.5.3: isian teks (nama, tempat, alamat) → Huruf Awal Kapital; data lama ikut rapi saat dicetak ulang
+  (fields || []).forEach(function (f) { if (lkRapiField(f) && out[f.field_key]) out[f.field_key] = lkRapi(out[f.field_key]); });
   // Wali nasab bapak kandung → salin data ayah calon istri
   if (lkStr(out.wali_jenis) === 'Nasab' && lkStr(out.wali_hubungan) === LK_WALI_AYAH) {
     ['nama', 'bin', 'nik', 'kewarganegaraan', 'tempat_lahir', 'tanggal_lahir', 'agama', 'pekerjaan'].concat(LK_DOMISILI).forEach(function (s) {
@@ -238,7 +240,8 @@ function lkDerive(data, fields, ctx) {
       // v1.5.1 SPTJM: nasab → hubungan wali; hakim → sebab wali hakim
       else if (arg === 'hubungan_atau_sebab') out[f.field_key] = wj === 'Nasab' ? lkStr(out.wali_hubungan) : wj === 'Hakim' ? lkStr(out.wali_hakim_alasan) : '';
       // v1.5.2: isian wali dibutuhkan (pengajuan memuat calon istri, atau nikah di wilayah Kec. Sawoo)
-      else if (arg === 'perlu') out[f.field_key] = lkWaliPerlu(out) ? 'Ya' : '';
+      // v1.5.3: kecuali calon suami yang nikah di desa lain — wali diisi desa nikah (desa calon istri)
+      else if (arg === 'perlu') out[f.field_key] = lkWaliPerlu(out, ctx.desaId) ? 'Ya' : '';
     }
     else if (jenis === 'SURAT') {
       // v1.5.2: TTE Srikandi → kode yang diisi Srikandi; tanda tangan basah → nomor surat diketik, ruang tanda tangan kosong
@@ -306,9 +309,67 @@ function lkN5Sumber(d, me) {
   return lkStr(d[pj + '_hubungan']) === 'Nenek' ? { ayah: '', ibu: pj } : { ayah: pj, ibu: '' };
 }
 
-/** v1.5.2: isian wali nikah dibutuhkan bila pengajuan memuat calon istri, atau nikah di wilayah Kec. Sawoo (Berita Acara Pemeriksaan Wali). */
-function lkWaliPerlu(d) {
-  return lkPeranHas(d, 'istri') || lkStr(d && d.jenis_pengajuan) === 'NIKAH_DI_KUA';
+/**
+ * v1.5.2: isian wali nikah dibutuhkan bila pengajuan memuat calon istri, atau nikah di wilayah Kec. Sawoo (Berita Acara Pemeriksaan Wali).
+ * v1.5.3: calon suami yang nikah di desa lain dalam kecamatan → tidak perlu (wali diisi desa nikah). desaId = desa pengaju.
+ */
+function lkWaliPerlu(d, desaId) {
+  if (lkPeranHas(d, 'istri')) return true;
+  return lkStr(d && d.jenis_pengajuan) === 'NIKAH_DI_KUA' && !lkNikahDesaLain(d, desaId);
+}
+
+/* ---------------- v1.5.3: NIKAH DI DESA LAIN DALAM KECAMATAN ---------------- */
+
+/**
+ * Pasangan pengajuan lintas desa (mis. calon suami Prayungan, nikah di Sriti): tiap bagian punya satu desa pemilik.
+ * Desa asal (calon suami) memiliki data suami; desa nikah (calon istri) memiliki data istri, wali, dan jadwal akad.
+ * kunci = isian langkah 1 yang dikunci di desa nikah selama tertaut.
+ */
+var LK_SINKRON = {
+  suami: ['Calon Suami', 'Ayah Suami', 'Ibu Suami', 'Izin Orang Tua Suami'],
+  istri: ['Calon Istri', 'Ayah Istri', 'Ibu Istri', 'Izin Orang Tua Istri', 'Wali Nikah'],
+  jadwal: ['Rencana Akad'],
+  kunci: ['jenis_pengajuan', 'akad_desa', 'peran_catin']
+};
+/** Bagian yang dikunci (diisi desa pasangan) menurut peran pengajuan: ASAL (desa calon suami) / NIKAH (desa nikah). */
+var LK_SINKRON_KUNCI = { ASAL: ['istri', 'jadwal'], NIKAH: ['suami', 'kunci'] };
+
+/** Pengajuan calon suami yang nikah di desa lain dalam kecamatan → diteruskan ke desa nikah (desa calon istri). */
+function lkNikahDesaLain(data, desaId) {
+  var ad = lkStr(data && data.akad_desa);
+  return lkStr(data && data.jenis_pengajuan) === 'NIKAH_DI_KUA' && lkStr(data && data.peran_catin) === 'SUAMI' && !!ad && !!desaId && ad !== lkStr(desaId);
+}
+
+/** Kunci field (bukan turunan) bagian-bagian sisi ('suami' | 'istri' | 'jadwal' | 'kunci'). */
+function lkSinkronKeys(fields, sisi) {
+  var grup = [], out = [];
+  (sisi || []).forEach(function (s) { if (s !== 'kunci') grup = grup.concat(LK_SINKRON[s] || []); });
+  (fields || []).forEach(function (f) { if (!lkStr(f.turunan) && f.grup !== 'Turunan' && grup.indexOf(f.grup) >= 0) out.push(f.field_key); });
+  return (sisi || []).indexOf('kunci') >= 0 ? out.concat(LK_SINKRON.kunci) : out;
+}
+
+/* ---------------- v1.5.3: KAPITALISASI ISIAN (Huruf Awal Kapital) ---------------- */
+
+/** Singkatan & gelar yang ditulis tetap; "bin/binti" huruf kecil (kecuali kata pertama). */
+var LK_RAPI_TETAP = {
+  rt: 'RT', rw: 'RW', kua: 'KUA', ri: 'RI', tni: 'TNI', polri: 'POLRI', asn: 'ASN', pns: 'PNS', bumn: 'BUMN', bumd: 'BUMD',
+  dpr: 'DPR', dprd: 'DPRD', pt: 'PT', cv: 'CV', sd: 'SD', smp: 'SMP', sma: 'SMA', smk: 'SMK', mts: 'MTs', wni: 'WNI', wna: 'WNA',
+  kh: 'KH', ii: 'II', iii: 'III', iv: 'IV', vi: 'VI', vii: 'VII', viii: 'VIII', ix: 'IX', xi: 'XI', xii: 'XII', bin: 'bin', binti: 'binti'
+};
+/** Isian teks yang TIDAK dirapikan: NIK, nomor HP/WA, nomor surat/akta, kode, RT/RW, jam. */
+var LK_RAPI_KECUALI = /(^|_)(nik|no_hp|hp|wa|nomor|email|kode|rt|rw|jam)(_|$)/;
+
+function lkRapiField(f) {
+  return !!f && lkStr(f.tipe) === 'TEKS' && !lkStr(f.turunan) && f.grup !== 'Turunan' && !LK_RAPI_KECUALI.test(lkStr(f.field_key));
+}
+
+/** "SITI AMINAH" / "siti aminah" → "Siti Aminah"; "dsn. KRAJAN rt 01" → "Dsn. Krajan RT 01"; "s.pd.i" → "S.Pd.I". */
+function lkRapi(s) {
+  return lkStr(s).replace(/\s+/g, ' ').replace(/[A-Za-z][A-Za-z'.]*/g, function (w, at) {
+    var low = w.toLowerCase(), inti = low.replace(/\.+$/, '');
+    if (Object.prototype.hasOwnProperty.call(LK_RAPI_TETAP, inti) && !(at === 0 && /^bin(ti)?$/.test(inti))) return LK_RAPI_TETAP[inti] + low.slice(inti.length);
+    return low.replace(/(^|\.)([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); });
+  });
 }
 
 /** Nilai penanda untuk dicetak di surat: kunci yang ditandai kosong (_kosong) dicetak kosong, bukan "-". */
@@ -625,7 +686,12 @@ function lkSystemChecks(d, ctx) {
   if (lkStr(d.suami_status_perkawinan) === 'Kawin') {
     w.push({ tingkat: 'PERINGATAN', field: 'suami_status_perkawinan', pesan: 'Calon suami berstatus Kawin (beristri lebih dari seorang) — wajib izin Pengadilan Agama.' });
   }
-  if (lkWaliPerlu(d)) {
+  // v1.5.3: pengajuan yang memuat calon istri → desa nikah = desa ini (desa calon istri yang meneruskan ke KUA)
+  if (ctx.desaId && lkStr(d.jenis_pengajuan) === 'NIKAH_DI_KUA' && lkPeranHas(d, 'istri') && lkStr(d.akad_desa) && lkStr(d.akad_desa) !== lkStr(ctx.desaId)) {
+    w.push({ tingkat: 'BLOKIR', field: 'akad_desa', fix: { field: 'akad_desa', value: lkStr(ctx.desaId), label: 'Pakai desa ini' },
+      pesan: 'Pengajuan ini memuat calon istri, jadi desa nikah adalah desa ini (desa calon istri yang meneruskan ke KUA).' });
+  }
+  if (d.wali_perlu !== undefined ? lkStr(d.wali_perlu) === 'Ya' : lkWaliPerlu(d, ctx.desaId)) {
     // v1.5.2: calon istri tanpa ayah (status "-") → tidak ada wali nasab, wajib wali hakim
     if (lkStr(d.wali_jenis) === 'Nasab' && lkStr(d.ayah_istri_status_keberadaan) === LK_TANPA_AYAH) {
       w.push({ tingkat: 'BLOKIR', field: 'wali_jenis', fix: { field: 'wali_jenis', value: 'Hakim', label: 'Pakai Wali Hakim' },
@@ -693,9 +759,8 @@ function lkTerbilang(n) {
   return n === 0 ? 'nol' : t(n);
 }
 
-function lkKapital(s) {
-  return lkStr(s).toLowerCase().replace(/(^|[\s\-\/(])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); });
-}
+/** v1.5.3: format |kapital memakai aturan kapitalisasi yang sama (singkatan & gelar tetap). */
+function lkKapital(s) { return lkRapi(s); }
 
 /**
  * Format nilai untuk dicetak di template.
@@ -761,6 +826,7 @@ if (typeof module !== 'undefined' && module.exports) {
     lkHariKerjaAntara: lkHariKerjaAntara, lkHariTutup: lkHariTutup, lkJamSlots: lkJamSlots, lkLiburMap: lkLiburMap,
     lkTerbilang: lkTerbilang, lkTanggalPanjang: lkTanggalPanjang, lkHari: lkHari, lkHash: lkHash,
     lkScanPlaceholders: lkScanPlaceholders, lkParseOpsi: lkParseOpsi, lkKapital: lkKapital, lkIddah: lkIddah, lkAddDays: lkAddDays,
-    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin, lkNilaiSurat: lkNilaiSurat, lkN5Sumber: lkN5Sumber, lkWaliPerlu: lkWaliPerlu
+    lkTanpaAlm: lkTanpaAlm, LK_PEKERJAAN: LK_PEKERJAAN, lkModinList: lkModinList, lkWaCatin: lkWaCatin, lkNilaiSurat: lkNilaiSurat, lkN5Sumber: lkN5Sumber, lkWaliPerlu: lkWaliPerlu,
+    lkRapi: lkRapi, lkRapiField: lkRapiField, lkNikahDesaLain: lkNikahDesaLain, lkSinkronKeys: lkSinkronKeys, LK_SINKRON: LK_SINKRON, LK_SINKRON_KUNCI: LK_SINKRON_KUNCI
   };
 }

@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.5.2
+# Panduan Instalasi — KUA-Link v1.5.3
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -30,7 +30,7 @@ Struktur Google Drive setelah setup:
 - **HP:** tanpa sidebar. Navigasi bawah: **Dashboard · Riwayat · ⊕ (tombol bulat tengah) · Profil · Panduan**.
   - Tombol tengah untuk desa = **Pengajuan baru**; untuk Admin KUA = lembar menu **Data Master**.
 - **Akun desa:** 14 akun (`desa.<nama desa>`) dengan password awal yang sama (`kuasawoojaya`), **wajib diganti** saat masuk pertama. Admin mengirim tautan, username, dan password ke modin lewat ikon **WhatsApp** di Data Master → Akun Desa.
-- **Modin** diatur Admin KUA per desa (boleh lebih dari satu). Di formulir: satu modin → terisi otomatis; lebih dari satu → desa memilih.
+- **Modin** per desa (boleh lebih dari satu). Diatur Admin KUA **atau desa sendiri** (Profil Desa, v1.5.3). Di formulir: pilih dari daftar atau ketik nama baru (masuk daftar modin desa).
 - **Desa** mengisi 4 langkah: **Jadwal Akad → Data Calon Suami → Data Calon Istri → Validasi**.
   - Langkah 1: Jenis & Pengajuan Untuk; **Kepala Desa | Modin**, lalu **Nomor Surat | Tanggal Surat**; jadwal akad.
   - Pengajuan baru **baru tercatat sebagai Draf** setelah Jadwal Akad terisi (jenis, pengajuan untuk, tanggal akad).
@@ -38,8 +38,38 @@ Struktur Google Drive setelah setup:
   - Langkah 2–3 dibagi tab Calon Suami | Ayah Calon Suami | Ibu Calon Suami (+ Pemberi Izin); Calon Istri | Ayah Calon Istri | Ibu Calon Istri (+ Pemberi Izin) | Wali Nikah. Bin/binti otomatis dari nama ayah. Pekerjaan dari 106 jenis KTP-el.
 - **Masa iddah** dicek otomatis (Bagian I).
 - **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
-- **Lonceng:** desa = draf yang belum selesai (ketuk untuk melanjutkan) + pemberitahuan KUA; Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
+- **Lonceng:** desa = data manten dari desa lain yang akan nikah di desa ini (ketuk untuk melanjutkan) + pemberitahuan KUA (draf ada di Riwayat Pengajuan); Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
 - Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
+
+## Pembaruan v1.5.3 (dari v1.5.2)
+
+1. Ganti isi **6 berkas** `.gs`: `Aturan`, `Integrasi`, `Kode`, `Master`, `Pengajuan`, `Setup` (`Dokumen`, `Laporan` sama). Simpan.
+2. Run **`upgradeV153`** sekali (aman diulang). Isinya:
+   - field baru **Nikah di Wilayah Desa** (langkah 1, sesudah Jenis Pengajuan, hanya bila nikah di wilayah Kec. Sawoo). Pilihannya otomatis = daftar desa aktif;
+   - aturan **Berita Acara Pemeriksaan Wali** hanya bila isian wali dibutuhkan (kondisi `wali_perlu = Ya`).
+3. Deploy → Manage deployments → Edit → **New version** → Deploy. Frontend: ekstrak folder `kua-link-v1.5.3-frontend` (jaga `GAS_URL` di `js/config.js`) → push.
+4. **LABUKU Desk** (agar PDF desa calon suami ikut masuk Dokumen): ganti isi `KUALink.gs` dengan `integrasi/labuku-desk/KUALink.gs` (v2.2) → Deploy → New version. Akad Tracker **tidak** perlu diubah.
+
+**Nikah di desa lain dalam kecamatan** (contoh: calon suami Desa Prayungan, calon istri Desa Sriti, akad di Sriti):
+
+| | Desa Prayungan (calon suami) | Desa Sriti (desa nikah = desa calon istri) |
+|---|---|---|
+| Langkah 1 | Jenis: Nikah di Wilayah · **Nikah di Wilayah Desa: Sriti** · Pengajuan Untuk: Calon Suami | Draf **Calon Istri** dibuat otomatis + muncul di lonceng |
+| Data calon suami | diisi Prayungan | terisi otomatis, terkunci |
+| Data calon istri, wali, jadwal akad | terisi otomatis dari Sriti, terkunci | diisi Sriti |
+| Wali nikah & Berita Acara Pemeriksaan Wali | tidak diisi | diisi Sriti |
+| Kiriman ke Akad Tracker & LABUKU Desk | tidak dikirim (status **Diteruskan**) | **dikirim Sriti**, berisi tautan PDF Sriti + PDF Prayungan |
+
+- Draf di Sriti dibuat setelah nama calon suami & calon istri terisi di Prayungan. Bila Sriti sudah membuat pengajuannya lebih dulu, pengajuan itu yang ditautkan (dicocokkan dari NIK calon istri, atau nama kedua catin + tanggal akad).
+- Tiap simpan, bagian masing-masing desa tersalin ke pasangannya. Bila pasangan sudah Siap Cetak, desa itu mendapat pemberitahuan untuk cetak ulang.
+- Pengajuan **Calon Istri** / **Calon Suami & Istri**: desa nikah = desa sendiri (terisi otomatis).
+- Calon istri dari **luar** Kec. Sawoo, akad di desa calon suami: pilih desa sendiri → wali tetap diisi desa calon suami, kiriman seperti biasa.
+- Prayungan mengubah desa nikah → tautan dilepas, Sriti diberi tahu. Salah satu desa membatalkan → desa pasangannya diberi tahu.
+- Pengajuan lama (sebelum v1.5.3) tanpa desa nikah tetap dikirim seperti sebelumnya.
+
+**Huruf Awal Kapital:** isian teks (nama, tempat lahir, alamat, kepala desa, modin, tempat akad) dirapikan saat kursor keluar dari isian dan saat disimpan, mis. `SITI AMINAH` / `siti aminah` → `Siti Aminah`, `dsn. KRAJAN rt 01` → `Dsn. Krajan RT 01`. Tetap: singkatan (RT, RW, KUA, TNI, POLRI, ASN, WNI), gelar (`S.Pd.I`, `H.`, `Hj.`), dan `bin`/`binti` huruf kecil. Tidak diubah: NIK, nomor HP, nomor surat & akta. Surat lama ikut rapi saat dicetak ulang. Penanda `{{x|huruf_besar}}` di template tetap HURUF BESAR.
+
+**Modin oleh desa:** Profil Desa → Modin: ubah nama/nomor WA, tambah, hapus. Nama modin baru yang diketik di formulir otomatis masuk daftar. Data Master → Akun Desa ikut berubah.
 
 ## Pembaruan v1.5.2 (dari v1.5.1)
 

@@ -340,9 +340,9 @@ var Pengajuan = (function () {
   function integrasiHtml(list) {
     if (!list || !list.length) return '';
     return '<div class="doclist">' + list.map(function (h) {
-      var ok = h.status === 'TERKIRIM', none = h.status === 'BELUM_DIATUR';
-      return '<div class="docitem"><span class="ic" style="' + (ok ? '' : none ? 'color:var(--muted)' : 'color:var(--danger)') + '">' + icon(ok ? 'checkCircle' : none ? 'plug' : 'xCircle', 18) + '</span><div class="nm"><b>' + esc(h.nama) + ' — ' + esc(h.layanan) + '</b><span>' +
-        (ok ? 'Terkirim' : none ? 'Belum disambungkan' : 'Gagal — dikirim ulang otomatis: ' + esc(h.pesan)) + '</span></div></div>';
+      var ok = h.status === 'TERKIRIM', none = h.status === 'BELUM_DIATUR', lewat = h.status === 'DITERUSKAN';   // v1.5.3: dikirim lewat desa nikah
+      return '<div class="docitem"><span class="ic" style="' + (ok ? '' : none || lewat ? 'color:var(--muted)' : 'color:var(--danger)') + '">' + icon(ok ? 'checkCircle' : lewat ? 'send' : none ? 'plug' : 'xCircle', 18) + '</span><div class="nm"><b>' + esc(h.nama) + ' — ' + esc(h.layanan) + '</b><span>' +
+        (ok ? 'Terkirim' : lewat ? esc(h.pesan) : none ? 'Belum disambungkan' : 'Gagal — dikirim ulang otomatis: ' + esc(h.pesan)) + '</span></div></div>';
     }).join('') + '</div>';
   }
   /** Dari menu aksi / detail: gabung PDF → unggah → kirim → buka WhatsApp KUA. */
@@ -469,7 +469,7 @@ var Detail = (function () {
     var p = data.pengajuan, d = data.data, kua = App.isKua();
     var st = p.status;
     var o = el();
-    var der = lkDerive(d, App.fields(), { id: p.pengajuan_id, desa: App.desaName(p.desa_id), kua: App.kuaName(), cfg: S.master.config });
+    var der = lkDerive(d, App.fields(), { id: p.pengajuan_id, desa: App.desaName(p.desa_id), kua: App.kuaName(), cfg: S.master.config, desaId: p.desa_id });
 
     var actions = '';
     if (st === 'SELESAI' || st === 'DIBATALKAN') actions += '<button class="btn btn-primary btn-gold" data-print>' + icon('printer') + '<span>Cetak Paket PDF</span></button>';
@@ -547,7 +547,8 @@ var Detail = (function () {
   var AKSI = {
     BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak (siap cetak)', EDIT_KUA: 'Diedit KUA', EDIT_DESA: 'Diedit desa',
     BATALKAN: 'Dibatalkan (status Batal)', KIRIM_KUA: 'Dikirim ke KUA (WhatsApp / Akad Tracker / LABUKU Desk)', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
-    SUDAH_CETAK_ULANG: 'Ditandai sudah dicetak ulang', BUAT_PASANGAN: 'Dibuat dari pengajuan pasangan', TAUTKAN_PASANGAN: 'Ditautkan dengan pasangan'
+    SUDAH_CETAK_ULANG: 'Ditandai sudah dicetak ulang', BUAT_PASANGAN: 'Dibuat dari pengajuan pasangan', TAUTKAN_PASANGAN: 'Ditautkan dengan pasangan',
+    TERIMA_DARI_DESA: 'Diterima dari desa calon suami (nikah di desa ini)', TAUTKAN_DESA_NIKAH: 'Diteruskan ke desa nikah', LEPAS_DESA_NIKAH: 'Tautan desa nikah dilepas'
   };
   function riwayatView() {
     var list = data.riwayat || [];

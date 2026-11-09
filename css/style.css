@@ -278,6 +278,7 @@ a.btn.btn-gold, a.btn.btn-primary.btn-gold { color: #3D2E02; }
 .select { appearance: none; padding-right: 36px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
 .input[readonly], .input:disabled, .select:disabled, .textarea[readonly] { background: var(--surface-2); color: var(--text-2); }
+.input:disabled, .select:disabled { cursor: not-allowed; }   /* v1.5.3: bagian yang diisi desa pasangan */
 .input.mono { font-family: var(--mono); }
 .field.err .input, .field.err .select, .field.err .textarea { border-color: var(--danger); }
 .field .help { font-size: 12px; color: var(--muted); }
@@ -532,6 +533,7 @@ table.tbl { width: 100%; border-collapse: collapse; background: var(--surface); 
 /* ---------- v1.3: tab formulir, pilihan cari, WhatsApp, navigasi bawah ---------- */
 .dp-input, .cp-input { cursor: pointer; background: var(--surface) !important; }
 .cp-input { padding-right: 34px; text-overflow: ellipsis; }
+.dp-input:disabled, .cp-input:disabled { cursor: not-allowed; background: var(--surface-2) !important; color: var(--text-2); }   /* v1.5.3 */
 .ftabs { gap: 0; padding: 0 16px; scrollbar-width: none; position: relative; z-index: 2; }
 .ftabs::-webkit-scrollbar { display: none; }
 .ftabs .subtab { flex: 0 0 auto; min-width: 0; padding: 12px 16px; display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
