@@ -546,7 +546,7 @@ var Detail = (function () {
 
   var AKSI = {
     BUAT_PENGAJUAN: 'Membuat draf', SIMPAN_CETAK: 'Simpan & Cetak (siap cetak)', EDIT_KUA: 'Diedit KUA', EDIT_DESA: 'Diedit desa',
-    BATALKAN: 'Dibatalkan (status Batal)', KIRIM_KUA: 'Dikirim ke KUA (WhatsApp / Akad Tracker / LABUKU Desk)', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
+    BATALKAN: 'Dibatalkan (status Batal)', KIRIM_KUA: 'Dikirim ke KUA (WhatsApp / LABUKU Desk)', AKTIFKAN_KEMBALI: 'Diaktifkan kembali',
     SUDAH_CETAK_ULANG: 'Ditandai sudah dicetak ulang', BUAT_PASANGAN: 'Dibuat dari pengajuan pasangan', TAUTKAN_PASANGAN: 'Ditautkan dengan pasangan',
     TERIMA_DARI_DESA: 'Diterima dari desa calon suami (nikah di desa ini)', TAUTKAN_DESA_NIKAH: 'Diteruskan ke desa nikah', LEPAS_DESA_NIKAH: 'Tautan desa nikah dilepas'
   };

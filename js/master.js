@@ -987,8 +987,8 @@ var Master = (function () {
       inp('WA_KUA', 'Nomor WhatsApp KUA', 'mis. 081234567890', 'tel') +
       '<div class="field"><label>Tautan PDF paket</label><select class="select" data-ik="PAKET_LINK_PUBLIK">' + UI.options([{ v: 'TRUE', l: 'Bisa dibuka siapa saja yang punya tautan' }, { v: 'FALSE', l: 'Hanya akun yang diberi akses' }], String((V.PAKET_LINK_PUBLIK || {}).value || 'TRUE').toUpperCase()) + '</select>' +
       '<div class="help">Berisi NIK. "Siapa saja" agar bisa dibuka dari WhatsApp.</div></div></div></div></div>' +
-      tujuan('AKAD_TRACKER', 'Akad Tracker', 'Nikah di wilayah → jadwal akad (dengan modin).') +
-      tujuan('LABUKU_DESK', 'LABUKU Desk', 'Nikah di wilayah → Pendaftaran Kehendak Nikah · luar wilayah → Rekomendasi Nikah. Masuk antrean Front Office sampai diverifikasi.') +
+      tujuan('LABUKU_DESK', 'LABUKU Desk', 'Nikah di wilayah → Pendaftaran Kehendak Nikah · luar wilayah → Rekomendasi Nikah. Masuk antrean Front Office sampai diverifikasi. ' +
+        'Jadwal akad masuk <b>Akad Tracker</b> dari LABUKU Desk setelah berkas diverifikasi (Lengkap → Proses); URL &amp; kunci Akad Tracker diatur di LABUKU Desk.') +
       '<div class="row end"><button class="btn btn-primary" data-isave>' + icon('save') + 'Simpan Pengaturan</button></div></div>';
     App.bindRefresh(main);
     var collect = function () { var o = {}; UI.$$('[data-ik]', main).forEach(function (el) { o[el.dataset.ik] = el.value.trim(); }); return o; };

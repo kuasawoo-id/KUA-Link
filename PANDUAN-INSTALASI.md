@@ -1,4 +1,4 @@
-# Panduan Instalasi — KUA-Link v1.5.3
+# Panduan Instalasi — KUA-Link v1.5.4
 
 Arsitektur:
 - **Backend** = Google Apps Script (9 berkas) yang menyimpan data di Google Sheets, membuat PDF dari Google Docs, dan menyimpannya di Google Drive.
@@ -37,9 +37,21 @@ Struktur Google Drive setelah setup:
   - **Tanggal akad paling cepat sehari sesudah tanggal surat** (tanggal surat dan sebelumnya disilang di kalender).
   - Langkah 2–3 dibagi tab Calon Suami | Ayah Calon Suami | Ibu Calon Suami (+ Pemberi Izin); Calon Istri | Ayah Calon Istri | Ibu Calon Istri (+ Pemberi Izin) | Wali Nikah. Bin/binti otomatis dari nama ayah. Pekerjaan dari 106 jenis KTP-el.
 - **Masa iddah** dicek otomatis (Bagian I).
-- **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **Akad Tracker** (dengan nama modin) & **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA.
+- **Simpan & Cetak** → paket PDF terunduh → **WhatsApp KUA terbuka** → data masuk **LABUKU Desk** (antrean Front Office) → cetak → tanda tangan Kepala Desa → stempel → bawa ke KUA. Jadwal akad masuk **Akad Tracker** dari LABUKU Desk setelah berkas diverifikasi (v1.5.4).
 - **Lonceng:** desa = data manten dari desa lain yang akan nikah di desa ini (ketuk untuk melanjutkan) + pemberitahuan KUA (draf ada di Riwayat Pengajuan); Admin KUA = hasil kiriman ke Akad Tracker & LABUKU Desk. Kiriman gagal dikirim ulang otomatis **tiap 5 menit** sampai berhasil.
 - Status: **Draf** · **Siap Cetak** · **Batal**. Batal langsung dari **Riwayat Pengajuan** (☰ → Batalkan) dan bisa diaktifkan kembali.
+
+## Pembaruan v1.5.4 (dari v1.5.3): Akad Tracker diisi LABUKU Desk setelah verifikasi berkas
+
+KUA-Link hanya mengirim ke **LABUKU Desk**, untuk nikah di wilayah maupun rekomendasi. Jadwal masuk **Akad Tracker** saat petugas Front Office menekan **Lengkap → Proses**. Pending tidak dikirim. Pendaftaran manual di KUA berlaku sama.
+
+1. Sebelum memasang: catat **URL /exec** dan **Kunci** Akad Tracker dari Data Master → Integrasi & WhatsApp (v1.5.3 masih menampilkannya). Keduanya dipakai di LABUKU Desk (`aturAkadTracker`).
+2. Pasang dulu **Akad Tracker v2.5**, lalu **LABUKU Desk v6.15** (lihat catatan update masing-masing).
+3. KUA-Link: ganti isi `Integrasi` dan `Kode`. Berkas `.gs` lain sama dengan v1.5.3. Deploy → New version. Frontend: push folder `kua-link-v1.5.4-frontend` (jaga `GAS_URL`).
+4. **Abaikan langkah 4 v1.5.3** (`integrasi/labuku-desk/KUALink.gs`). Berkas itu dibuat dari LABUKU Desk lama; penggantinya ada di LABUKU Desk v6.15.
+
+- Data Master → Integrasi kini hanya berisi WhatsApp KUA dan LABUKU Desk.
+- Jadwal yang dulu sudah dikirim langsung ke Akad Tracker dibiarkan. Saat berkasnya diverifikasi, jadwal yang sama diperbarui (nomor KUA-Link sama, tidak dobel). Bila desa membatalkannya, ikut BATAL.
 
 ## Pembaruan v1.5.3 (dari v1.5.2)
 

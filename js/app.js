@@ -511,7 +511,7 @@ var App = (function () {
     };
     var masuk = isKua() ? [] : items.filter(function (n) { return /^NIKAH_/.test(n.jenis); });
     var lain = items.filter(function (n) { return masuk.indexOf(n) < 0; });
-    pop.innerHTML = '<div class="card-head"><h3 style="font-size:15px">' + (isKua() ? 'Kiriman ke Akad Tracker & LABUKU Desk' : 'Notifikasi') + '</h3></div>' +
+    pop.innerHTML = '<div class="card-head"><h3 style="font-size:15px">' + (isKua() ? 'Kiriman ke LABUKU Desk' : 'Notifikasi') + '</h3></div>' +
       (masuk.length ? '<div class="notif-sec">Akan nikah di desa ini</div>' + masuk.map(itemHtml).join('') : '') +
       (masuk.length && lain.length ? '<div class="notif-sec">Dari KUA</div>' : '') + lain.map(itemHtml).join('') +
       (items.length ? '' : '<div class="empty">' + (isKua() ? 'Belum ada kiriman.' : 'Belum ada pemberitahuan. Data manten dari desa lain yang akan nikah di desa ini muncul di sini.') + '</div>');
@@ -648,7 +648,7 @@ var App = (function () {
       ]),
       sec('printer', 'Cetak &amp; kirim ke KUA', [
         'Di langkah <b>Validasi</b> tekan <b>Simpan &amp; Cetak</b>. Paket PDF terunduh, lalu <b>WhatsApp KUA terbuka</b> berisi bukti daftar &amp; tautan PDF — tekan <b>Kirim</b>.',
-        'Data otomatis masuk ke KUA: nikah di wilayah → Akad Tracker &amp; LABUKU Desk; luar wilayah → LABUKU Desk (rekomendasi).',
+        'Data otomatis masuk ke KUA lewat LABUKU Desk: nikah di wilayah → Pendaftaran Kehendak Nikah; luar wilayah → rekomendasi. Jadwal akad masuk Akad Tracker setelah berkas diverifikasi di KUA.',
         'Cetak → tanda tangan Kepala Desa → stempel → bawa berkas ke KUA.'
       ]),
       sec('history', 'Riwayat, edit &amp; batal', [
@@ -665,8 +665,8 @@ var App = (function () {
       ])
     ] : [
       sec('grid', 'Alur kerja KUA', [
-        'Desa mengisi &amp; mencetak sendiri. Setelah <b>Simpan &amp; Cetak</b>, data langsung terkirim ke Akad Tracker / LABUKU Desk dan desa mengirim WhatsApp ke nomor KUA.',
-        '<b>Lonceng</b> berisi hasil kiriman ke Akad Tracker &amp; LABUKU Desk (berhasil / gagal). Kiriman gagal dikirim ulang otomatis tiap 5 menit sampai berhasil.',
+        'Desa mengisi &amp; mencetak sendiri. Setelah <b>Simpan &amp; Cetak</b>, data langsung terkirim ke LABUKU Desk dan desa mengirim WhatsApp ke nomor KUA. Jadwal akad masuk Akad Tracker setelah berkas diverifikasi (Lengkap → Proses).',
+        '<b>Lonceng</b> berisi hasil kiriman ke LABUKU Desk (berhasil / gagal). Kiriman gagal dikirim ulang otomatis tiap 5 menit sampai berhasil.',
         'Berkas salah: buka pengajuan → <b>Edit Data</b>. Desa mendapat pemberitahuan untuk cetak &amp; tanda tangan ulang.'
       ]),
       sec('users', 'Akun Desa &amp; Modin', [
@@ -679,7 +679,7 @@ var App = (function () {
         '<b>Template Surat</b>: buat di Google Docs dengan penanda <span class="code-chip">{{field_key}}</span> di folder 01_Template_Sumber, lalu daftarkan. Template bawaan adalah CONTOH — ganti dengan format resmi.',
         '<b>Aturan Paket Surat</b>: surat untuk setiap kombinasi Jenis Pengajuan × Pengajuan Untuk.',
         '<b>Hari Libur</b>: tanggal yang disilang di kalender akad Kantor KUA. Tambahkan libur tahun berikutnya setelah SKB terbit.',
-        '<b>Integrasi &amp; WhatsApp</b>: nomor WhatsApp KUA serta URL /exec &amp; kunci Akad Tracker dan LABUKU Desk. Tekan <b>Uji Koneksi</b> setelah menyimpan.'
+        '<b>Integrasi &amp; WhatsApp</b>: nomor WhatsApp KUA serta URL /exec &amp; kunci LABUKU Desk (Akad Tracker diatur di LABUKU Desk). Tekan <b>Uji Koneksi</b> setelah menyimpan.'
       ])
     ];
     main.innerHTML = pageHead('Beranda / Panduan', 'PANDUAN SINGKAT') + '<div class="guide-grid">' + html.join('') + '</div>';
